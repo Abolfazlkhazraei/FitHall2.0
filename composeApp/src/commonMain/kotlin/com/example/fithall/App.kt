@@ -1,47 +1,88 @@
 package com.example.fithall
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.safeContentPadding
-import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material3.Icon
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
-import org.jetbrains.compose.resources.painterResource
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.fithall.ai.AiService
+import com.example.fithall.data.AppRepository
+import com.example.fithall.ui.CoachScreen
+import com.example.fithall.ui.FitHallTheme
+import com.example.fithall.ui.NutritionScreen
+import com.example.fithall.ui.OnboardingScreen
+import com.example.fithall.ui.ProfileScreen
+import com.example.fithall.ui.WorkoutScreen
 
-import fithall.composeapp.generated.resources.Res
-import fithall.composeapp.generated.resources.compose_multiplatform
+private enum class Tab(val label: String, val icon: ImageVector) {
+    NUTRITION("Nutrition", Icons.Filled.Restaurant),
+    WORKOUTS("Workouts", Icons.Filled.FitnessCenter),
+    COACH("Coach", Icons.AutoMirrored.Filled.Chat),
+    PROFILE("Profile", Icons.Filled.Person),
+}
 
 @Composable
-@Preview
-fun App() {
-    MaterialTheme {
-        var showContent by remember { mutableStateOf(false) }
-        Column(
-            modifier = Modifier
-                .background(MaterialTheme.colorScheme.primaryContainer)
-                .safeContentPadding()
-                .fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Button(onClick = { showContent = !showContent }) {
-                Text("Click me!")
+fun App(repository: AppRepository, ai: AiService) {
+    val viewModel = viewModel { AppViewModel(repository, ai) }
+    val state by viewModel.state.collectAsStateWithLifecycle()
+
+    FitHallTheme {
+        val profile = state.profile
+        if (profile == null) {
+            OnboardingScreen(onSave = viewModel::saveProfile)
+            return@FitHallTheme
+        }
+
+        var tab by rememberSaveable { mutableStateOf(Tab.NUTRITION) }
+        val snackbar = remember { SnackbarHostState() }
+        LaunchedEffect(state.error) {
+            state.error?.let {
+                snackbar.showSnackbar(it)
+                viewModel.dismissError()
             }
-            AnimatedVisibility(showContent) {
-                val greeting = remember { Greeting().greet() }
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Image(painterResource(Res.drawable.compose_multiplatform), null)
-                    Text("Compose: $greeting")
+        }
+
+        Scaffold(
+            snackbarHost = { SnackbarHost(snackbar) },
+            bottomBar = {
+                NavigationBar {
+                    Tab.entries.forEach { item ->
+                        NavigationBarItem(
+                            selected = tab == item,
+                            onClick = { tab = item },
+                            icon = { Icon(item.icon, contentDescription = null) },
+                            label = { Text(item.label) },
+                        )
+                    }
+                }
+            },
+        ) { padding ->
+            Box(Modifier.padding(padding)) {
+                when (tab) {
+                    Tab.NUTRITION -> NutritionScreen(state, viewModel)
+                    Tab.WORKOUTS -> WorkoutScreen(state, viewModel)
+                    Tab.COACH -> CoachScreen(state, viewModel)
+                    Tab.PROFILE -> ProfileScreen(profile, viewModel)
                 }
             }
         }
