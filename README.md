@@ -36,6 +36,13 @@ On Windows PowerShell use `$env:ANTHROPIC_API_KEY="sk-ant-..."` and `$env:TOKEN_
 | `DEVICE_REQUESTS_PER_MINUTE` | `10` | |
 | `GLOBAL_UNITS_PER_DAY` | `20000` | Hard daily cap on what the server will spend. |
 | `REGISTRATIONS_PER_IP_PER_HOUR` | `20` | Slows down token farming. |
+| `INTEGRITY_MODE` | `off` | Play Integrity at registration: `off`, `monitor` (check and log, everyone gets full access) or `enforce`. See below. |
+| `LIMITED_UNITS_PER_DAY` | `8` | In `enforce` mode, the allowance for devices that fail the check (no Google Play, rooted, modified app). `0` refuses them. |
+| `APP_PACKAGE_NAME` | `com.example.fithall` | Verdicts for any other package are rejected. |
+| `INTEGRITY_REQUIRE_DEVICE` | `true` | Require `MEETS_DEVICE_INTEGRITY`; `false` accepts `MEETS_BASIC_INTEGRITY`. |
+| `INTEGRITY_REQUIRE_LICENSED` | `false` | Require the app to have been installed from Google Play. |
+| `APP_CERT_SHA256` | none | Optional comma-separated signing certificate digests, as Play reports them. |
+| `GOOGLE_APPLICATION_CREDENTIALS` | none | Service account key used to decode integrity tokens (needed unless `INTEGRITY_MODE=off`). |
 
 ### 2. Point the app at it
 
@@ -67,8 +74,28 @@ and check-in requests can take up to a couple of minutes, so allow long request 
 
 **Before scaling out:** usage limits are kept in memory, so they're per server instance. Run a
 single instance, or move the counters in `UsageLimiter` to a shared store such as Redis. Device
-tokens are anonymous and can't be revoked individually; adding Google Play Integrity checks at
-registration is the next step to stop scripted clients.
+tokens are anonymous and can't be revoked individually.
+
+### 4. Turn on Play Integrity
+
+Registration asks Google Play to vouch that the request comes from your genuine app on a real
+Android device, so scripted clients can't farm tokens. It only works once the app is on Google
+Play (an internal testing track is enough); sideloaded debug builds can't pass.
+
+1. In the Play Console, open **Test and release → App integrity → Play Integrity API** and link a
+   Google Cloud project. In that project, enable the **Google Play Integrity API**.
+2. Add the project *number* (not the id) to `local.properties` and rebuild the app:
+   ```properties
+   PLAY_CLOUD_PROJECT_NUMBER=123456789012
+   ```
+3. In the same Cloud project, create a service account, download a JSON key, and give the
+   server `GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json` (or use the host's built-in
+   service account on Google Cloud).
+4. Start with `INTEGRITY_MODE=monitor`, install the app from your testing track, and check the
+   server log for `Registration integrity check: ... passed=true`. Then switch to `enforce`.
+
+Existing installs re-register automatically the first time they talk to the updated server.
+Google's default quota for decoding tokens is 10,000 a day, and each install uses one.
 
 ## How it's organised
 

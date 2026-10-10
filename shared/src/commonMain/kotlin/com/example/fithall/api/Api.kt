@@ -9,8 +9,13 @@ import kotlinx.serialization.Serializable
  * The HTTP contract between the app and the FitHall server. All AI endpoints are POST with a
  * JSON body and need `Authorization: Bearer <token>` from [Api.REGISTER]. Responses are the
  * model classes (MealAnalysis, WorkoutPlan, ...) or an [ApiError] with a non-2xx status.
+ *
+ * Registration: POST [Api.CHALLENGE] for a one-time nonce, get a Play Integrity token for that
+ * nonce on the device, then POST [Api.REGISTER] with both. Devices that can't produce a token
+ * still register, with whatever access the server's integrity mode allows.
  */
 object Api {
+    const val CHALLENGE = "/v1/devices/challenge"
     const val REGISTER = "/v1/devices"
     const val MEAL_PHOTO = "/v1/meals/photo"
     const val MEAL_TEXT = "/v1/meals/text"
@@ -32,7 +37,21 @@ object Api {
 }
 
 @Serializable
-data class RegisterResponse(val token: String)
+data class ChallengeResponse(val nonce: String)
+
+@Serializable
+data class RegisterRequest(
+    val nonce: String? = null,
+    /** Play Integrity token requested with [nonce]; null when the device couldn't produce one. */
+    val integrityToken: String? = null,
+)
+
+@Serializable
+data class RegisterResponse(
+    val token: String,
+    /** True when the device passed integrity checks (or checks are off) and gets the full allowance. */
+    val fullAccess: Boolean = true,
+)
 
 @Serializable
 data class MealPhotoRequest(val imageBase64: String, val note: String = "")
@@ -72,4 +91,5 @@ object ErrorCodes {
     const val REFUSED = "refused"
     const val AI_ERROR = "ai_error"
     const val PAYLOAD_TOO_LARGE = "payload_too_large"
+    const val INTEGRITY_FAILED = "integrity_failed"
 }

@@ -5,6 +5,7 @@ import com.example.fithall.ai.AiException
 import com.example.fithall.ai.AiService
 import com.example.fithall.api.Api
 import com.example.fithall.api.ApiError
+import com.example.fithall.api.ChallengeResponse
 import com.example.fithall.api.CheckInRequest
 import com.example.fithall.api.CoachRequest
 import com.example.fithall.api.CoachResponse
@@ -12,6 +13,7 @@ import com.example.fithall.api.ErrorCodes
 import com.example.fithall.api.MealPhotoRequest
 import com.example.fithall.api.MealTextRequest
 import com.example.fithall.api.NutritionPlanRequest
+import com.example.fithall.api.RegisterRequest
 import com.example.fithall.api.RegisterResponse
 import com.example.fithall.api.WorkoutPlanRequest
 import io.ktor.http.HttpHeaders
@@ -35,7 +37,11 @@ import io.ktor.server.response.respondText
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
+import io.ktor.server.request.receiveChannel
 import io.ktor.server.routing.routing
+import io.ktor.utils.io.readRemaining
+import kotlinx.io.readString
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 
@@ -61,6 +67,10 @@ fun Application.fitHallModule(
     ai: AiService,
     limiter: UsageLimiter = UsageLimiter(config.limits),
     tokens: DeviceTokens = DeviceTokens(config.tokenSecret),
+    challenges: Challenges = Challenges(config.tokenSecret),
+    // Created eagerly so a missing Google credential fails at startup, not on the first sign-up.
+    integrity: IntegrityVerifier =
+        if (config.integrity.mode == IntegrityMode.OFF) NoIntegrityVerifier else GooglePlayIntegrityVerifier(config.integrity),
 ) {
     install(ContentNegotiation) {
         json(Json { ignoreUnknownKeys = true })
@@ -86,11 +96,17 @@ fun Application.fitHallModule(
     routing {
         get(Api.HEALTH) { call.respondText("ok") }
 
+        post(Api.CHALLENGE) {
+            call.respond(ChallengeResponse(challenges.issue()))
+        }
+
         post(Api.REGISTER) {
             if (!limiter.tryRegister(call.request.origin.remoteHost)) {
                 throw ApiException(HttpStatusCode.TooManyRequests, ErrorCodes.RATE_LIMITED, "Too many sign-ups from this network. Try again later.", 3600)
             }
-            call.respond(RegisterResponse(tokens.issue()))
+            val request = receiveRegisterRequest(call)
+            val tier = accessTier(request, config, challenges, integrity)
+            call.respond(RegisterResponse(tokens.issue(tier), fullAccess = tier == AccessTier.FULL))
         }
 
         aiPost<MealPhotoRequest, _>(Api.MEAL_PHOTO, AiOperation.MEAL_PHOTO, limiter, tokens, maxBodyBytes = PHOTO_BODY_LIMIT) { req ->
@@ -130,12 +146,14 @@ private const val PHOTO_BODY_LIMIT = Api.MAX_IMAGE_BYTES * 4L / 3 + 16 * 1024
 
 /** Passed to each AI handler: validate first, then call [charge] to spend units and run the AI. */
 class AiCall(
-    private val deviceId: String,
+    private val device: DeviceIdentity,
     private val operation: AiOperation,
     private val limiter: UsageLimiter,
 ) {
+    private val deviceId get() = device.deviceId
+
     suspend fun <T> charge(block: suspend () -> T): T {
-        when (val decision = limiter.tryAcquire(deviceId, operation)) {
+        when (val decision = limiter.tryAcquire(deviceId, operation, device.tier)) {
             is Decision.Denied -> throw decision.toApiException()
             Decision.Allowed -> Unit
         }
@@ -160,15 +178,15 @@ private inline fun <reified Req : Any, reified Res : Any> Route.aiPost(
     crossinline handle: suspend AiCall.(Req) -> Res,
 ) {
     post(path) {
-        val deviceId = authenticate(call, tokens)
+        val device = authenticate(call, tokens)
         checkBodySize(call, maxBodyBytes)
         val request = call.receive<Req>()
-        val result = AiCall(deviceId, operation, limiter).handle(request)
+        val result = AiCall(device, operation, limiter).handle(request)
         call.respond(result)
     }
 }
 
-private fun authenticate(call: ApplicationCall, tokens: DeviceTokens): String {
+private fun authenticate(call: ApplicationCall, tokens: DeviceTokens): DeviceIdentity {
     val token = call.request.headers[HttpHeaders.Authorization]?.removePrefix("Bearer ")?.trim()
     return token?.let(tokens::verify)
         ?: throw ApiException(HttpStatusCode.Unauthorized, ErrorCodes.UNAUTHORIZED, "Please sign in again.")
@@ -208,5 +226,64 @@ private fun AiException.toApiException(): ApiException = when (kind) {
     AiErrorKind.UNAVAILABLE, AiErrorKind.NETWORK -> {
         log.warn("AI call failed: {}", message, cause)
         ApiException(HttpStatusCode.BadGateway, ErrorCodes.AI_ERROR, message ?: "The AI service had a problem. Please try again.")
+    }
+}
+
+// ---- Registration ----
+
+private const val REGISTER_BODY_LIMIT = 32L * 1024
+private val registerJson = Json { ignoreUnknownKeys = true }
+
+/** The body is optional: older clients and integrity-off setups may send none. */
+private suspend fun receiveRegisterRequest(call: ApplicationCall): RegisterRequest {
+    val length = call.request.headers[HttpHeaders.ContentLength]?.toLongOrNull()
+    if (length != null && length > REGISTER_BODY_LIMIT) {
+        throw ApiException(HttpStatusCode.PayloadTooLarge, ErrorCodes.PAYLOAD_TOO_LARGE, "That request is too large.")
+    }
+    val text = call.receiveChannel().readRemaining(REGISTER_BODY_LIMIT + 1).readString()
+    if (text.length > REGISTER_BODY_LIMIT) {
+        throw ApiException(HttpStatusCode.PayloadTooLarge, ErrorCodes.PAYLOAD_TOO_LARGE, "That request is too large.")
+    }
+    if (text.isBlank()) return RegisterRequest()
+    return try {
+        registerJson.decodeFromString(RegisterRequest.serializer(), text)
+    } catch (e: SerializationException) {
+        throw ApiException(HttpStatusCode.BadRequest, ErrorCodes.INVALID_REQUEST, "The request was malformed.")
+    }
+}
+
+/** Decides what a registering device gets, according to the integrity mode. */
+private suspend fun accessTier(
+    request: RegisterRequest,
+    config: ServerConfig,
+    challenges: Challenges,
+    integrity: IntegrityVerifier,
+): AccessTier {
+    val mode = config.integrity.mode
+    if (mode == IntegrityMode.OFF) return AccessTier.FULL
+
+    val verdict = checkIntegrity(request, challenges, integrity)
+    // Failure reasons are verdict codes only, nothing that identifies the user.
+    log.info("Registration integrity check: mode={} passed={} failures={}", mode, verdict.passed, verdict.failures)
+    return when {
+        mode == IntegrityMode.MONITOR || verdict.passed -> AccessTier.FULL
+        config.limits.limitedUnitsPerDay > 0 -> AccessTier.LIMITED
+        else -> throw ApiException(
+            HttpStatusCode.Forbidden, ErrorCodes.INTEGRITY_FAILED,
+            "FitHall couldn't verify this device. AI features need the app from Google Play on a certified Android device.",
+        )
+    }
+}
+
+private suspend fun checkIntegrity(request: RegisterRequest, challenges: Challenges, integrity: IntegrityVerifier): IntegrityVerdict {
+    val nonce = request.nonce
+    if (nonce == null || !challenges.consume(nonce)) return IntegrityVerdict.failed("missing_or_invalid_nonce")
+    val token = request.integrityToken ?: return IntegrityVerdict.failed("no_token")
+    return try {
+        integrity.verify(token, nonce)
+    } catch (e: Exception) {
+        // A Google outage shouldn't lock everyone out: treat it as unverified (limited access).
+        log.warn("Play Integrity verification failed", e)
+        IntegrityVerdict.failed("verifier_error")
     }
 }

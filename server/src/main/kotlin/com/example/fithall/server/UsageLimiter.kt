@@ -20,6 +20,8 @@ data class UsageLimits(
     /** Across all devices per UTC day: the hard cap on what the server will spend. */
     val globalUnitsPerDay: Int = 20_000,
     val registrationsPerIpPerHour: Int = 20,
+    /** Daily units for devices that failed the integrity check in ENFORCE mode. 0 refuses them. */
+    val limitedUnitsPerDay: Int = 8,
 )
 
 sealed interface Decision {
@@ -44,7 +46,7 @@ class UsageLimiter(
     private var globalUnits = 0
 
     @Synchronized
-    fun tryAcquire(deviceId: String, operation: AiOperation): Decision {
+    fun tryAcquire(deviceId: String, operation: AiOperation, tier: AccessTier = AccessTier.FULL): Decision {
         val now = clock()
         val day = now / DAY_MS
         if (day != globalDay) {
@@ -65,7 +67,7 @@ class UsageLimiter(
                 val retry = (MINUTE_MS - (now - usage.recentRequests.first()) + 999) / 1000
                 Decision.Denied(Decision.Reason.TOO_FAST, retry.coerceAtLeast(1))
             }
-            usage.units + operation.units > limits.deviceUnitsPerDay ->
+            usage.units + operation.units > dailyUnits(tier) ->
                 Decision.Denied(Decision.Reason.DEVICE_DAILY_LIMIT, secondsToMidnight)
             globalUnits + operation.units > limits.globalUnitsPerDay ->
                 Decision.Denied(Decision.Reason.GLOBAL_DAILY_LIMIT, secondsToMidnight)
@@ -76,6 +78,11 @@ class UsageLimiter(
                 Decision.Allowed
             }
         }
+    }
+
+    private fun dailyUnits(tier: AccessTier) = when (tier) {
+        AccessTier.FULL -> limits.deviceUnitsPerDay
+        AccessTier.LIMITED -> limits.limitedUnitsPerDay
     }
 
     /** Gives the units back, e.g. when the AI call failed through no fault of the user. */

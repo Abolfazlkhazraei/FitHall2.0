@@ -3,6 +3,8 @@ package com.example.fithall
 import com.example.fithall.ai.AiErrorKind
 import com.example.fithall.ai.AiException
 import com.example.fithall.ai.BackendAiService
+import com.example.fithall.ai.DeviceAttestation
+import com.example.fithall.ai.NoAttestation
 import com.example.fithall.api.Api
 import com.example.fithall.data.InMemoryKeyValueStore
 import com.example.fithall.model.ChatMessage
@@ -29,8 +31,18 @@ class BackendAiServiceTest {
 
     private fun service(
         store: InMemoryKeyValueStore = InMemoryKeyValueStore(),
+        attestation: DeviceAttestation = NoAttestation,
         handler: suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData,
-    ) = BackendAiService("https://api.example.com/", store, MockEngine { request -> requests += request; handler(request) })
+    ) = BackendAiService(
+        "https://api.example.com/", store, attestation,
+        MockEngine { request ->
+            requests += request
+            // Every registration starts with a challenge.
+            if (request.url.encodedPath == Api.CHALLENGE) json("""{"nonce":"nonce-123"}""") else handler(request)
+        },
+    )
+
+    private fun HttpRequestData.bodyText() = (body as OutgoingContent.ByteArrayContent).bytes().decodeToString()
 
     private fun MockRequestHandleScope.json(body: String, status: HttpStatusCode = HttpStatusCode.OK) =
         respond(body, status, jsonHeaders)
@@ -92,12 +104,43 @@ class BackendAiServiceTest {
     }
 
     @Test
+    fun registrationSendsTheAttestationForTheServerNonce() = runTest {
+        var attestedNonce: String? = null
+        val ai = service(attestation = { nonce -> attestedNonce = nonce; "play-token" }) { request ->
+            if (request.url.encodedPath == Api.REGISTER) json("""{"token":"t","fullAccess":true}""") else json(mealJson)
+        }
+        ai.analyzeMealDescription("toast")
+        assertEquals("nonce-123", attestedNonce)
+        val register = requests.first { it.url.encodedPath == Api.REGISTER }.bodyText()
+        assertTrue(""""nonce":"nonce-123"""" in register, register)
+        assertTrue(""""integrityToken":"play-token"""" in register, register)
+    }
+
+    @Test
+    fun attestationFailureStillRegistersWithoutAToken() = runTest {
+        val ai = service(attestation = { error("Play services missing") }) { request ->
+            if (request.url.encodedPath == Api.REGISTER) json("""{"token":"t","fullAccess":false}""") else json(mealJson)
+        }
+        assertEquals("Toast", ai.analyzeMealDescription("toast").mealName)
+        val register = requests.first { it.url.encodedPath == Api.REGISTER }.bodyText()
+        assertTrue(""""integrityToken"""" !in register || """"integrityToken":null""" in register, register)
+    }
+
+    @Test
+    fun refusedDeviceGetsTheServerMessage() = runTest {
+        val ai = service { json("""{"code":"integrity_failed","message":"FitHall couldn't verify this device."}""", HttpStatusCode.Forbidden) }
+        val e = assertFailsWith<AiException> { ai.analyzeMealDescription("toast") }
+        assertEquals("FitHall couldn't verify this device.", e.message)
+        assertEquals(AiErrorKind.INVALID_REQUEST, e.kind)
+    }
+
+    @Test
     fun photosAreSentAsBase64() = runTest {
         val ai = service { request ->
             if (request.url.encodedPath == Api.REGISTER) json("""{"token":"t"}""") else json(mealJson)
         }
         ai.analyzeMeal(byteArrayOf(1, 2, 3), "no oil")
-        val body = (requests.last().body as OutgoingContent.ByteArrayContent).bytes().decodeToString()
+        val body = requests.last().bodyText()
         assertTrue(""""imageBase64":"AQID"""" in body, body)
         assertTrue(""""note":"no oil"""" in body, body)
     }

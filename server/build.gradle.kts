@@ -36,6 +36,7 @@ dependencies {
     implementation(libs.ktor.serializationJson)
     implementation(libs.kotlinx.serializationJson)
     implementation(libs.logback)
+    implementation(libs.googleAuth)
 
     testImplementation(libs.ktor.serverTestHost)
     testImplementation(libs.ktor.clientContentNegotiation)

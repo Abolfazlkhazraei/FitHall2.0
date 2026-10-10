@@ -6,10 +6,16 @@ import java.util.Base64
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
+/** How much a device may use. Decided once, at registration, by the integrity check. */
+enum class AccessTier { FULL, LIMITED }
+
+data class DeviceIdentity(val deviceId: String, val tier: AccessTier)
+
 /**
- * Anonymous device tokens: "v1.<deviceId>.<signature>", signed with HMAC-SHA256. The server can
- * verify them without a database. They identify an install for rate limiting; they are not
- * accounts, and a determined abuser can register more (registration is rate limited per IP).
+ * Anonymous device tokens: "v2.<deviceId>.<tier>.<signature>", signed with HMAC-SHA256 so the
+ * server can verify them, tier included, without a database. They identify an install for rate
+ * limiting; they are not accounts. Older "v1" tokens are rejected, which makes those installs
+ * re-register (and pass the integrity check) automatically.
  */
 class DeviceTokens(secret: String) {
 
@@ -17,26 +23,28 @@ class DeviceTokens(secret: String) {
     private val random = SecureRandom()
     private val encoder = Base64.getUrlEncoder().withoutPadding()
 
-    fun issue(): String {
+    fun issue(tier: AccessTier): String {
         val id = ByteArray(16).also(random::nextBytes)
-        val deviceId = encoder.encodeToString(id)
-        return "$PREFIX.$deviceId.${sign(deviceId)}"
+        val payload = "$PREFIX.${encoder.encodeToString(id)}.${tier.name.lowercase()}"
+        return "$payload.${sign(payload)}"
     }
 
-    /** Returns the device id if the token is genuine, otherwise null. */
-    fun verify(token: String): String? {
+    /** Returns who the token belongs to if it's genuine, otherwise null. */
+    fun verify(token: String): DeviceIdentity? {
         val parts = token.split('.')
-        if (parts.size != 3 || parts[0] != PREFIX || parts[1].isEmpty()) return null
-        val expected = sign(parts[1]).toByteArray()
-        return parts[1].takeIf { MessageDigest.isEqual(expected, parts[2].toByteArray()) }
+        if (parts.size != 4 || parts[0] != PREFIX || parts[1].isEmpty()) return null
+        val payload = parts.take(3).joinToString(".")
+        if (!MessageDigest.isEqual(sign(payload).toByteArray(), parts[3].toByteArray())) return null
+        val tier = AccessTier.entries.firstOrNull { it.name.lowercase() == parts[2] } ?: return null
+        return DeviceIdentity(parts[1], tier)
     }
 
-    private fun sign(deviceId: String): String {
+    private fun sign(payload: String): String {
         val mac = Mac.getInstance("HmacSHA256").apply { init(key) }
-        return encoder.encodeToString(mac.doFinal("$PREFIX.$deviceId".toByteArray()))
+        return encoder.encodeToString(mac.doFinal(payload.toByteArray()))
     }
 
     private companion object {
-        const val PREFIX = "v1"
+        const val PREFIX = "v2"
     }
 }

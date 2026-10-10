@@ -21,6 +21,8 @@ kotlinx-datetime = "0.8.0"
 okhttp = "4.12.0"
 ktor = "3.5.2"
 logback = "1.6.5"
+playIntegrity = "1.5.0"
+googleAuth = "1.54.0"
 playServicesCodeScanner = "16.1.0"
 materialIconsExtended = "1.7.3"
 
@@ -64,6 +66,8 @@ ktor-serverStatusPages = { module = "io.ktor:ktor-server-status-pages", version.
 ktor-serverCallLogging = { module = "io.ktor:ktor-server-call-logging", version.ref = "ktor" }
 ktor-serverForwardedHeader = { module = "io.ktor:ktor-server-forwarded-header", version.ref = "ktor" }
 ktor-serverTestHost = { module = "io.ktor:ktor-server-test-host", version.ref = "ktor" }
+playIntegrity = { module = "com.google.android.play:integrity", version.ref = "playIntegrity" }
+googleAuth = { module = "com.google.auth:google-auth-library-oauth2-http", version.ref = "googleAuth" }
 logback = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
 
 [plugins]

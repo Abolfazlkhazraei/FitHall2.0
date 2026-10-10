@@ -2,6 +2,7 @@ package com.example.fithall.ai
 
 import com.example.fithall.api.Api
 import com.example.fithall.api.ApiError
+import com.example.fithall.api.ChallengeResponse
 import com.example.fithall.api.CheckInRequest
 import com.example.fithall.api.CoachRequest
 import com.example.fithall.api.CoachResponse
@@ -9,6 +10,7 @@ import com.example.fithall.api.ErrorCodes
 import com.example.fithall.api.MealPhotoRequest
 import com.example.fithall.api.MealTextRequest
 import com.example.fithall.api.NutritionPlanRequest
+import com.example.fithall.api.RegisterRequest
 import com.example.fithall.api.RegisterResponse
 import com.example.fithall.api.WorkoutPlanRequest
 import com.example.fithall.data.KeyValueStore
@@ -44,11 +46,13 @@ import kotlin.io.encoding.Base64
 
 /**
  * Calls the FitHall server, which holds the Anthropic key. The install registers itself
- * anonymously on first use and keeps its device token in [store].
+ * anonymously on first use, proving it's the genuine app with [attestation], and keeps its
+ * device token in [store].
  */
 class BackendAiService(
     baseUrl: String,
     private val store: KeyValueStore,
+    private val attestation: DeviceAttestation = NoAttestation,
     /** Only for tests; production picks the platform engine automatically. */
     engine: HttpClientEngine? = null,
 ) : AiService {
@@ -125,7 +129,20 @@ class BackendAiService(
     /** Registers a new token unless another request already replaced [stale]. */
     private suspend fun newToken(stale: String?): String = tokenLock.withLock {
         store.get(TOKEN_KEY)?.takeIf { it != stale }?.let { return it }
-        val response = client.post(baseUrl + Api.REGISTER)
+        val challenge = client.post(baseUrl + Api.CHALLENGE)
+        if (!challenge.status.isSuccess()) throw challenge.toAiException()
+        val nonce = challenge.body<ChallengeResponse>().nonce
+        val integrityToken = try {
+            attestation.attest(nonce)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null // The server decides what an unattested device may do.
+        }
+        val response = client.post(baseUrl + Api.REGISTER) {
+            contentType(ContentType.Application.Json)
+            setBody(RegisterRequest(nonce, integrityToken))
+        }
         if (!response.status.isSuccess()) throw response.toAiException()
         val token = response.body<RegisterResponse>().token
         store.put(TOKEN_KEY, token)
@@ -137,7 +154,7 @@ class BackendAiService(
         val kind = when (error?.code) {
             ErrorCodes.RATE_LIMITED, ErrorCodes.DAILY_LIMIT, ErrorCodes.SERVICE_BUSY -> AiErrorKind.RATE_LIMITED
             ErrorCodes.REFUSED -> AiErrorKind.REFUSED
-            ErrorCodes.INVALID_REQUEST, ErrorCodes.PAYLOAD_TOO_LARGE -> AiErrorKind.INVALID_REQUEST
+            ErrorCodes.INVALID_REQUEST, ErrorCodes.PAYLOAD_TOO_LARGE, ErrorCodes.INTEGRITY_FAILED -> AiErrorKind.INVALID_REQUEST
             else -> AiErrorKind.UNAVAILABLE
         }
         return AiException(error?.message ?: "FitHall's servers had a problem (${status.value}). Please try again.", kind)

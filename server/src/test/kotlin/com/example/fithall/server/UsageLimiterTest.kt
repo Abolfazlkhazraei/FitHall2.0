@@ -11,21 +11,47 @@ class DeviceTokensTest {
     private val tokens = DeviceTokens("x".repeat(32))
 
     @Test
-    fun issuedTokensVerifyAndAreUnique() {
-        val a = tokens.issue()
-        val b = tokens.issue()
+    fun issuedTokensVerifyWithTheirTier() {
+        val a = tokens.issue(AccessTier.FULL)
+        val b = tokens.issue(AccessTier.LIMITED)
         assertNotEquals(a, b)
-        assertEquals(a.split('.')[1], tokens.verify(a))
+        assertEquals(DeviceIdentity(a.split('.')[1], AccessTier.FULL), tokens.verify(a))
+        assertEquals(AccessTier.LIMITED, tokens.verify(b)?.tier)
     }
 
     @Test
     fun rejectsTamperedOrForeignTokens() {
-        val token = tokens.issue()
-        val (prefix, id, sig) = token.split('.')
-        assertNull(tokens.verify("$prefix.${id}x.$sig"))
-        assertNull(tokens.verify("$prefix.$id.${sig.reversed()}"))
+        val token = tokens.issue(AccessTier.LIMITED)
+        val (prefix, id, tier, sig) = token.split('.')
+        assertNull(tokens.verify("$prefix.$id.full.$sig"), "upgrading the tier must break the signature")
+        assertNull(tokens.verify("$prefix.${id}x.$tier.$sig"))
+        assertNull(tokens.verify("$prefix.$id.$tier.${sig.reversed()}"))
+        assertNull(tokens.verify("v1.$id.$sig"), "old-format tokens are rejected")
         assertNull(tokens.verify("garbage"))
         assertNull(DeviceTokens("y".repeat(32)).verify(token))
+    }
+}
+
+class ChallengesTest {
+    private var now = 1_000_000_000_000L
+    private val challenges = Challenges("x".repeat(32), clock = { now })
+
+    @Test
+    fun nonceIsUsableOnceAndIsPlayCompatible() {
+        val nonce = challenges.issue()
+        assertTrue(Regex("^[A-Za-z0-9_-]{16,500}$").matches(nonce), nonce)
+        assertTrue(challenges.consume(nonce))
+        assertTrue(!challenges.consume(nonce), "replay must fail")
+    }
+
+    @Test
+    fun rejectsExpiredForgedOrForeignNonces() {
+        val nonce = challenges.issue()
+        now += 11 * 60_000
+        assertTrue(!challenges.consume(nonce))
+        assertTrue(!challenges.consume(Challenges("y".repeat(32), clock = { now }).issue()))
+        assertTrue(!challenges.consume("AAAA"))
+        assertTrue(!challenges.consume("not base64 !!"))
     }
 }
 

@@ -18,6 +18,8 @@ val localProperties = Properties().apply {
     if (file.exists()) file.inputStream().use { load(it) }
 }
 val backendUrl: String = localProperties.getProperty("BACKEND_URL") ?: "http://10.0.2.2:8080"
+// Google Cloud project linked to the app in the Play Console; enables Play Integrity. 0 = off.
+val playCloudProjectNumber: String = localProperties.getProperty("PLAY_CLOUD_PROJECT_NUMBER")?.trim()?.ifEmpty { null } ?: "0"
 
 kotlin {
     androidTarget {
@@ -45,6 +47,7 @@ kotlin {
             implementation(libs.okhttp)
             implementation(libs.ktor.clientOkhttp)
             implementation(libs.playServices.codeScanner)
+            implementation(libs.playIntegrity)
         }
         commonMain.dependencies {
             implementation(libs.compose.runtime)
@@ -91,6 +94,7 @@ android {
         versionCode = 1
         versionName = "1.0"
         buildConfigField("String", "BACKEND_URL", "\"$backendUrl\"")
+        buildConfigField("long", "PLAY_CLOUD_PROJECT_NUMBER", "${playCloudProjectNumber}L")
     }
     buildFeatures {
         buildConfig = true
