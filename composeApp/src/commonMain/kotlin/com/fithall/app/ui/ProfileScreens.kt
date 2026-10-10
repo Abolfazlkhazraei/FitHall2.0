@@ -68,6 +68,7 @@ fun ProfileScreen(
     profile: UserProfile,
     adjustment: TargetAdjustment,
     remindersOn: Boolean,
+    crashReportsOn: Boolean,
     privacyPolicyUrl: String,
     viewModel: AppViewModel,
 ) {
@@ -108,7 +109,7 @@ fun ProfileScreen(
             },
         )
         RemindersSection(remindersOn, viewModel)
-        YourDataSection(privacyPolicyUrl, viewModel)
+        YourDataSection(privacyPolicyUrl, crashReportsOn, viewModel)
     }
 }
 

@@ -38,6 +38,8 @@ FitHall uses, where it goes, and the choices you have.
 | Device token | A random identifier created when the app is first used | On your phone; sent with each request |
 | Barcodes | The number on a product you scan | Sent to Open Food Facts to look up the product |
 
+| Crash reports (only if you opt in) | What the app was doing when it crashed or hit an unexpected error (technical stack trace), phone model, Android version, app version, and a random Crashlytics installation ID | Sent to Google Firebase Crashlytics |
+
 FitHall doesn't use advertising, advertising IDs or analytics trackers, and it doesn't sell your data.
 
 ## 2. How each feature uses your data
@@ -76,6 +78,15 @@ Play to confirm that it is the genuine FitHall app on a genuine Android device. 
 the verdict under Google's privacy policy; we use it only to protect the service from abuse and
 don't store it.
 
+**Crash reports (optional).** If you tick "send crash reports" on the first screen, or turn it on
+later in Profile → Your data, the app sends crash and error reports to Google Firebase
+Crashlytics, which processes them for us as a service provider. Reports contain technical
+information only: the error and where in the app's code it happened, your phone model, Android
+version, app version and a random installation ID. We don't attach a user id, your name, or any
+of your health and fitness data. Turning the option off stops reports and deletes any that
+haven't been sent yet. Google keeps crash reports for [VERIFY: currently 90 days per the
+Crashlytics documentation]; see https://firebase.google.com/support/privacy.
+
 **Backups.** If Android backup is turned on for your device, Android may include FitHall's data
 in your Google account backup, encrypted, so it can be restored on a new phone. You can manage
 this in your phone's settings.
@@ -88,6 +99,7 @@ this in your phone's settings.
 - **Providing the service you asked for** (contract) for the device token and request handling.
 - **Our legitimate interest** in keeping the service secure and preventing abuse, for rate
   limiting and device checks.
+- **Your consent** for crash reports, which are optional and off unless you turn them on.
 
 ## 4. How long data is kept
 
@@ -95,6 +107,7 @@ this in your phone's settings.
 - **On our server:** not stored. Usage counters reset daily; sign-up IP addresses are held in
   memory for up to one hour.
 - **Anthropic:** [FILL IN FROM ANTHROPIC'S TERMS].
+- **Crash reports (if enabled):** kept by Firebase Crashlytics for [VERIFY: 90 days].
 
 ## 5. Your choices and rights
 

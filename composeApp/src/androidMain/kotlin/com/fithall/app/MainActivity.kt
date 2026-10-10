@@ -15,6 +15,7 @@ import com.fithall.app.data.OpenFoodFactsDatabase
 import com.fithall.app.platform.AndroidConnectivity
 import com.fithall.app.platform.AndroidReminderScheduler
 import com.fithall.app.platform.DATABASE_NAME
+import com.fithall.app.platform.FirebaseCrashReporter
 import com.fithall.app.platform.SharedPreferencesStore
 import com.fithall.app.platform.clearAppCaches
 
@@ -42,6 +43,7 @@ class MainActivity : ComponentActivity() {
                 reminders = AndroidReminderScheduler(applicationContext),
                 openProgress = intent?.getStringExtra(EXTRA_OPEN) == OPEN_PROGRESS,
                 connectivity = AndroidConnectivity.get(applicationContext),
+                crashReporter = FirebaseCrashReporter(applicationContext),
             )
         }
     }

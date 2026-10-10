@@ -36,11 +36,17 @@ class InMemoryKeyValueStore : KeyValueStore {
 
 /** What the user agreed to on the consent screen. A new policy [version] asks again. */
 @Serializable
-data class PrivacyConsent(val version: Int, val acceptedAtMillis: Long)
+data class PrivacyConsent(
+    val version: Int,
+    val acceptedAtMillis: Long,
+    /** Optional and off unless the user ticks it: sends crash reports to Firebase Crashlytics. */
+    val crashReports: Boolean = false,
+)
 
 object PrivacyPolicy {
     /** Bump when the privacy policy or the data the app sends changes in a way users must re-accept. */
-    const val VERSION = 1
+    // 2: optional crash reporting (Firebase Crashlytics) added.
+    const val VERSION = 2
 }
 
 /**

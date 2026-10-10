@@ -26,6 +26,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -48,9 +49,11 @@ import com.fithall.app.platform.todayKey
  * special-category data under GDPR, so processing it needs explicit, separate agreement.
  */
 @Composable
-fun ConsentScreen(privacyPolicyUrl: String, onAccept: () -> Unit) {
+fun ConsentScreen(privacyPolicyUrl: String, onAccept: (crashReports: Boolean) -> Unit) {
     var adult by rememberSaveable { mutableStateOf(false) }
     var agreed by rememberSaveable { mutableStateOf(false) }
+    // Optional and unticked: consent has to be an active choice.
+    var crashReports by rememberSaveable { mutableStateOf(false) }
 
     Column(
         Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(20.dp),
@@ -100,7 +103,13 @@ fun ConsentScreen(privacyPolicyUrl: String, onAccept: () -> Unit) {
             "I agree to FitHall processing my health and fitness data as described above and in the privacy policy.",
         )
 
-        Button(onClick = onAccept, enabled = adult && agreed, modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
+        ConsentCheckbox(
+            crashReports, { crashReports = it },
+            "Optional: send crash reports to help fix bugs. They include your phone model, Android version " +
+                "and an app installation ID, never your health data. You can change this in Profile.",
+        )
+
+        Button(onClick = { onAccept(crashReports) }, enabled = adult && agreed, modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
             Text("Continue")
         }
         Text(
@@ -129,7 +138,7 @@ private fun ConsentCheckbox(checked: Boolean, onChange: (Boolean) -> Unit, text:
 
 /** Profile → Your data: policy link, export (data portability) and delete (erasure / withdraw consent). */
 @Composable
-fun YourDataSection(privacyPolicyUrl: String, viewModel: AppViewModel) {
+fun YourDataSection(privacyPolicyUrl: String, crashReportsOn: Boolean, viewModel: AppViewModel) {
     val exporter = rememberFileExporter()
     val uriHandler = LocalUriHandler.current
     var confirmDelete by remember { mutableStateOf(false) }
@@ -142,6 +151,17 @@ fun YourDataSection(privacyPolicyUrl: String, viewModel: AppViewModel) {
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Send crash reports", style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    "Helps fix bugs. Includes phone model, Android version and an installation ID; never health data.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Switch(checked = crashReportsOn, onCheckedChange = viewModel::setCrashReports)
+        }
         if (privacyPolicyUrl.isNotBlank()) {
             OutlinedButton(onClick = { uriHandler.openUri(privacyPolicyUrl) }, modifier = Modifier.fillMaxWidth()) {
                 Icon(Icons.Filled.Policy, null)

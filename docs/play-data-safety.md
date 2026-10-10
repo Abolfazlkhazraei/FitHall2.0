@@ -24,11 +24,14 @@ barcode, which isn't user data.
 | Personal info → Other info (age, sex) | Yes | No | Yes | Optional | App functionality |
 | Photos and videos → Photos (meal photos) | Yes | No | Yes | Optional | App functionality |
 | Messages → Other in-app messages (coach chat) | Yes | No | Yes | Optional | App functionality |
-| Device or other IDs (random device token) | Yes | No | No | Required to use AI features | App functionality, Fraud prevention, security and compliance |
+| Device or other IDs (random device token; Crashlytics installation ID if crash reports are on) | Yes | No | No | Required to use AI features | App functionality, Fraud prevention, security and compliance, Analytics |
+| App info and performance → Crash logs | Yes | No | No | Optional (opt-in on the consent screen or in Profile) | Analytics (diagnosing crashes) |
+| App info and performance → Diagnostics (phone model, Android version, app version) | Yes | No | No | Optional (same opt-in) | Analytics (diagnosing crashes) |
 
 Not collected: name (it stays on the device), email, location, contacts, financial info, audio
 (speech is converted to text by the phone's own speech service), app activity analytics,
-advertising ID.
+advertising ID. Firebase Crashlytics is Google acting as your service provider, so crash logs
+are collected, not shared. The app doesn't include Firebase Analytics.
 
 "Processed ephemerally" is yes for the health data, photos and messages because the server only
 uses them to answer the request and doesn't store them. **Confirm Anthropic's retention terms

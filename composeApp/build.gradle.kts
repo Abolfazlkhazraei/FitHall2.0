@@ -12,6 +12,15 @@ plugins {
     alias(libs.plugins.sqldelight)
 }
 
+// Firebase Crashlytics needs google-services.json from your Firebase project (Project settings ->
+// your Android app). Without it the app still builds, with crash reporting off; release builds
+// require it (see checkReleaseConfig). The file is git-ignored.
+val hasFirebaseConfig = file("google-services.json").exists()
+if (hasFirebaseConfig) {
+    apply(plugin = "com.google.gms.google-services")
+    apply(plugin = "com.google.firebase.crashlytics")
+}
+
 // The app talks only to the FitHall server, which holds the Anthropic key. Set BACKEND_URL in
 // local.properties; the default reaches a server running on your computer from the Android emulator.
 val localProperties = Properties().apply {
@@ -41,6 +50,7 @@ val releaseProblems: List<String> = buildList {
     else if (!releaseBackendUrl.startsWith("https://")) add("RELEASE_BACKEND_URL must start with https:// (got $releaseBackendUrl)")
     if (privacyPolicyUrl == null) add("PRIVACY_POLICY_URL is not set (the public page hosting docs/privacy-policy.md)")
     else if (!privacyPolicyUrl.startsWith("https://")) add("PRIVACY_POLICY_URL must start with https:// (got $privacyPolicyUrl)")
+    if (!hasFirebaseConfig) add("composeApp/google-services.json is missing (download it from your Firebase project for crash reporting)")
     if (!hasReleaseSigning) add("Signing is not configured: set RELEASE_STORE_FILE, RELEASE_STORE_PASSWORD, RELEASE_KEY_ALIAS and RELEASE_KEY_PASSWORD")
     else if (releaseStoreFile?.exists() != true) add("RELEASE_STORE_FILE not found: $releaseStoreFile")
 }
@@ -72,6 +82,8 @@ kotlin {
             implementation(libs.ktor.clientOkhttp)
             implementation(libs.sqldelight.androidDriver)
             implementation(libs.androidx.workRuntime)
+            implementation(project.dependencies.platform(libs.firebase.bom))
+            implementation(libs.firebase.crashlytics)
             implementation(libs.playServices.codeScanner)
             implementation(libs.playIntegrity)
         }

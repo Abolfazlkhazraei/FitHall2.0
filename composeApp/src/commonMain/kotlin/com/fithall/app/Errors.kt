@@ -39,3 +39,19 @@ object ErrorMessages {
         }
     }
 }
+
+/**
+ * Crash and error reporting. Only active after the user opts in; reports carry no user id and
+ * no health data. Android uses Firebase Crashlytics.
+ */
+interface CrashReporter {
+    /** Turning it off also deletes reports that haven't been sent yet. */
+    fun setEnabled(enabled: Boolean)
+    /** For unexpected errors the app recovered from (shown to users as "Something went wrong"). */
+    fun recordNonFatal(error: Throwable)
+}
+
+object NoCrashReporter : CrashReporter {
+    override fun setEnabled(enabled: Boolean) = Unit
+    override fun recordNonFatal(error: Throwable) = Unit
+}

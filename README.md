@@ -106,6 +106,19 @@ https://www.anthropic.com/pricing, and use the Anthropic Console's usage page an
 limit as the source of truth. When a request is declined and retried on a fallback model, only the
 final attempt's tokens are counted.
 
+### Crash reporting (Firebase Crashlytics)
+
+1. Create a project at https://console.firebase.google.com and add an Android app with package
+   name `com.fithall.app`.
+2. Download `google-services.json` into `composeApp/` (it's git-ignored; on CI, write it from a
+   secret before building).
+3. In the Firebase console, open Crashlytics for the app.
+
+Without the file the app builds normally with crash reporting off; release builds require it.
+Reports are only sent for users who opt in (consent screen or Profile → Your data), carry no user
+id or health data, and include non-fatal reports for unexpected errors. Release builds upload the
+R8 mapping file automatically, so stack traces are readable.
+
 ### 4. Turn on Play Integrity
 
 Registration asks Google Play to vouch that the request comes from your genuine app on a real

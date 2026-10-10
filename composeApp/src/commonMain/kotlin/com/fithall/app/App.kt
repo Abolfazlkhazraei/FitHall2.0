@@ -64,8 +64,9 @@ fun App(
     /** Start on the Progress tab, e.g. when opened from the check-in reminder. */
     openProgress: Boolean = false,
     connectivity: Connectivity = AlwaysOnline,
+    crashReporter: CrashReporter = NoCrashReporter,
 ) {
-    val viewModel = viewModel { AppViewModel(repository, ai, foods, clearCaches, reminders, connectivity) }
+    val viewModel = viewModel { AppViewModel(repository, ai, foods, clearCaches, reminders, connectivity, crashReporter) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val online by connectivity.isOnline.collectAsStateWithLifecycle()
 
@@ -115,7 +116,12 @@ fun App(
                     Tab.WORKOUTS -> WorkoutScreen(state, viewModel)
                     Tab.PROGRESS -> ProgressScreen(state, viewModel)
                     Tab.COACH -> CoachScreen(state, viewModel)
-                    Tab.PROFILE -> ProfileScreen(profile, state.adjustment, state.checkInReminders, privacyPolicyUrl, viewModel)
+                    Tab.PROFILE -> ProfileScreen(
+                        profile, state.adjustment, state.checkInReminders,
+                        crashReportsOn = state.consent?.crashReports == true,
+                        privacyPolicyUrl = privacyPolicyUrl,
+                        viewModel = viewModel,
+                    )
                 }
                 }
             }

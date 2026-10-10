@@ -115,6 +115,7 @@ class AppViewModel(
     private val clearCaches: () -> Unit = {},
     private val reminders: ReminderScheduler = NoReminders,
     private val connectivity: Connectivity = AlwaysOnline,
+    private val crashReporter: CrashReporter = NoCrashReporter,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(
@@ -137,6 +138,8 @@ class AppViewModel(
     init {
         // Idempotent: keeps the existing schedule if there is one.
         if (repository.checkInReminders) reminders.schedule()
+        // Crash reports only with the current consent and the user's opt-in.
+        crashReporter.setEnabled(!_state.value.needsConsent && _state.value.consent?.crashReports == true)
     }
     val state: StateFlow<AppState> = _state.asStateFlow()
 
@@ -146,9 +149,17 @@ class AppViewModel(
 
     // ---- Privacy ----
 
-    fun acceptConsent() {
-        val consent = PrivacyConsent(PrivacyPolicy.VERSION, nowMillis())
+    fun acceptConsent(crashReports: Boolean = false) {
+        val consent = PrivacyConsent(PrivacyPolicy.VERSION, nowMillis(), crashReports)
         repository.consent = consent
+        crashReporter.setEnabled(crashReports)
+        _state.update { it.copy(consent = consent) }
+    }
+
+    fun setCrashReports(enabled: Boolean) {
+        val consent = _state.value.consent?.copy(crashReports = enabled) ?: return
+        repository.consent = consent
+        crashReporter.setEnabled(enabled)
         _state.update { it.copy(consent = consent) }
     }
 
@@ -163,6 +174,7 @@ class AppViewModel(
     fun deleteAllData() {
         viewModelScope.coroutineContext.cancelChildren()
         reminders.cancel()
+        crashReporter.setEnabled(false)
         repository.clearAll()
         clearCaches()
         _state.value = AppState()
@@ -620,7 +632,11 @@ class AppViewModel(
         }
     }
 
-    private fun failure(e: Throwable): AiFailure = ErrorMessages.forFailure(e, connectivity.isOnline.value)
+    private fun failure(e: Throwable): AiFailure {
+        // Expected failures (offline, limits, refusals) are AiExceptions; anything else is a bug worth reporting.
+        if (e !is AiException) crashReporter.recordNonFatal(e)
+        return ErrorMessages.forFailure(e, connectivity.isOnline.value)
+    }
 
     private companion object {
         const val MAX_CHAT_TURNS = 30
