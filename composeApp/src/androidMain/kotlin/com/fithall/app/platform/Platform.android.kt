@@ -37,6 +37,9 @@ class SharedPreferencesStore(context: Context) : KeyValueStore {
     override fun put(key: String, value: String?) {
         prefs.edit().apply { if (value == null) remove(key) else putString(key, value) }.apply()
     }
+    override fun clear() {
+        prefs.edit().clear().commit()
+    }
 }
 
 @Composable
@@ -46,9 +49,16 @@ actual fun rememberMealPhotoLauncher(onPhoto: (ByteArray) -> Unit): MealPhotoLau
     // Survives the activity being recreated while the camera app is in front.
     var pendingCapture by rememberSaveable { mutableStateOf<String?>(null) }
 
-    fun deliver(uri: Uri) {
+    /** [ownFile] is a camera capture in our cache; it's deleted once read, so photos don't pile up. */
+    fun deliver(uri: Uri, ownFile: File? = null) {
         scope.launch {
-            val bytes = withContext(Dispatchers.IO) { runCatching { loadScaledJpeg(context, uri) }.getOrNull() }
+            val bytes = withContext(Dispatchers.IO) {
+                try {
+                    runCatching { loadScaledJpeg(context, uri) }.getOrNull()
+                } finally {
+                    ownFile?.delete()
+                }
+            }
             if (bytes != null) onPhoto(bytes)
         }
     }
@@ -56,7 +66,8 @@ actual fun rememberMealPhotoLauncher(onPhoto: (ByteArray) -> Unit): MealPhotoLau
     val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { saved ->
         val path = pendingCapture
         pendingCapture = null
-        if (saved && path != null) deliver(Uri.fromFile(File(path)))
+        val file = path?.let(::File)
+        if (saved && file != null) deliver(Uri.fromFile(file), ownFile = file) else file?.delete()
     }
     val gallery = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) deliver(uri)

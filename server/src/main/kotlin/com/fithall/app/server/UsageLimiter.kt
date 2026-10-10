@@ -86,6 +86,10 @@ class UsageLimiter(
     }
 
     /** Gives the units back, e.g. when the AI call failed through no fault of the user. */
+    /** For tests and monitoring: how many IP addresses are currently remembered. */
+    @Synchronized
+    fun rememberedIpCount(): Int = registrations.size
+
     @Synchronized
     fun refund(deviceId: String, operation: AiOperation) {
         val day = clock() / DAY_MS
@@ -93,12 +97,16 @@ class UsageLimiter(
         if (globalDay == day) globalUnits = (globalUnits - operation.units).coerceAtLeast(0)
     }
 
+    /**
+     * Sign-up IPs are held for at most an hour (the privacy policy says so): every call first
+     * forgets anything older, for all IPs.
+     */
     @Synchronized
     fun tryRegister(ip: String): Boolean {
         val now = clock()
-        if (registrations.size > 10_000) registrations.values.removeAll { q -> q.all { now - it >= HOUR_MS } }
+        registrations.values.forEach { q -> q.removeAll { now - it >= HOUR_MS } }
+        registrations.values.removeAll { it.isEmpty() }
         val recent = registrations.getOrPut(ip) { ArrayDeque() }
-        recent.removeAll { now - it >= HOUR_MS }
         if (recent.size >= limits.registrationsPerIpPerHour) return false
         recent.addLast(now)
         return true

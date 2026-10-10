@@ -80,10 +80,10 @@ class BackendAiService(
         post(Api.MEAL_TEXT, MealTextRequest(description.take(Api.MAX_DESCRIPTION_CHARS)))
 
     override suspend fun generateWorkoutPlan(profile: UserProfile, recentTraining: String): WorkoutPlan =
-        post(Api.WORKOUT_PLAN, WorkoutPlanRequest(profile, recentTraining.take(Api.MAX_TRAINING_CHARS)))
+        post(Api.WORKOUT_PLAN, WorkoutPlanRequest(profile.withoutName(), recentTraining.take(Api.MAX_TRAINING_CHARS)))
 
     override suspend fun generateNutritionPlan(profile: UserProfile, targets: MacroTargets): NutritionPlan =
-        post(Api.NUTRITION_PLAN, NutritionPlanRequest(profile, targets))
+        post(Api.NUTRITION_PLAN, NutritionPlanRequest(profile.withoutName(), targets))
 
     override suspend fun coachReply(context: String, history: List<ChatMessage>): String {
         val trimmed = history.takeLast(Api.MAX_CHAT_MESSAGES).map { it.copy(text = it.text.take(Api.MAX_CHAT_MESSAGE_CHARS)) }
@@ -159,6 +159,9 @@ class BackendAiService(
         }
         return AiException(error?.message ?: "FitHall's servers had a problem (${status.value}). Please try again.", kind)
     }
+
+    /** The AI doesn't need the user's name, so it never leaves the device. */
+    private fun UserProfile.withoutName() = copy(name = "")
 
     private companion object {
         const val TOKEN_KEY = "backend_device_token"

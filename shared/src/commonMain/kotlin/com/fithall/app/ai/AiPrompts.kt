@@ -89,8 +89,8 @@ Write for the user in second person: warm, specific and brief. Wins and concerns
 
     fun checkInUserText(report: String): String = "Here is my report for this week's check-in.\n\n$report"
 
+    /** Everything the AI needs about the user. Deliberately leaves out their name. */
     fun profileSummary(p: UserProfile): String = buildString {
-        appendLine("Name: ${p.name}")
         appendLine("Age: ${p.age}, sex: ${p.sex.label}")
         appendLine("Height: ${p.heightCm} cm, weight: ${p.weightKg} kg")
         appendLine("Activity level: ${p.activityLevel.label} (${p.activityLevel.description})")

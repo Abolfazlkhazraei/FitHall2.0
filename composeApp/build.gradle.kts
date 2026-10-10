@@ -27,6 +27,8 @@ fun releaseSetting(name: String): String? =
     localProperties.getProperty(name)?.trim()?.ifEmpty { null } ?: System.getenv(name)?.trim()?.ifEmpty { null }
 
 val releaseBackendUrl = releaseSetting("RELEASE_BACKEND_URL")
+// Must be a public web page for the Play listing; the app links to it from the consent screen.
+val privacyPolicyUrl = releaseSetting("PRIVACY_POLICY_URL")
 val releaseStoreFile = releaseSetting("RELEASE_STORE_FILE")?.let { rootProject.file(it) }
 val releaseStorePassword = releaseSetting("RELEASE_STORE_PASSWORD")
 val releaseKeyAlias = releaseSetting("RELEASE_KEY_ALIAS")
@@ -36,6 +38,8 @@ val hasReleaseSigning = releaseStoreFile != null && releaseStorePassword != null
 val releaseProblems: List<String> = buildList {
     if (releaseBackendUrl == null) add("RELEASE_BACKEND_URL is not set (your deployed server, e.g. https://api.fithall.app)")
     else if (!releaseBackendUrl.startsWith("https://")) add("RELEASE_BACKEND_URL must start with https:// (got $releaseBackendUrl)")
+    if (privacyPolicyUrl == null) add("PRIVACY_POLICY_URL is not set (the public page hosting docs/privacy-policy.md)")
+    else if (!privacyPolicyUrl.startsWith("https://")) add("PRIVACY_POLICY_URL must start with https:// (got $privacyPolicyUrl)")
     if (!hasReleaseSigning) add("Signing is not configured: set RELEASE_STORE_FILE, RELEASE_STORE_PASSWORD, RELEASE_KEY_ALIAS and RELEASE_KEY_PASSWORD")
     else if (releaseStoreFile?.exists() != true) add("RELEASE_STORE_FILE not found: $releaseStoreFile")
 }
@@ -115,6 +119,7 @@ android {
         versionName = releaseSetting("VERSION_NAME") ?: "1.0"
         buildConfigField("String", "BACKEND_URL", "\"$backendUrl\"")
         buildConfigField("long", "PLAY_CLOUD_PROJECT_NUMBER", "${playCloudProjectNumber}L")
+        buildConfigField("String", "PRIVACY_POLICY_URL", "\"${privacyPolicyUrl.orEmpty()}\"")
     }
     buildFeatures {
         buildConfig = true

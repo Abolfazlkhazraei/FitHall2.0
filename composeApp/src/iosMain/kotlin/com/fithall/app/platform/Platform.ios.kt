@@ -36,3 +36,11 @@ actual fun rememberBarcodeScanner(onBarcode: (String) -> Unit, onError: (String)
         override fun scan() = Unit
     }
 }
+
+@Composable
+actual fun rememberFileExporter(): FileExporter = remember {
+    object : FileExporter {
+        override val isAvailable = false
+        override fun export(fileName: String, mimeType: String, content: String) = Unit
+    }
+}

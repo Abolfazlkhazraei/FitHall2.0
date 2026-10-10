@@ -10,6 +10,8 @@ import com.fithall.app.data.FoodDatabase
 import com.fithall.app.data.PackagedFood
 import com.fithall.app.data.PackagedFoods
 import com.fithall.app.data.PortionUnit
+import com.fithall.app.data.PrivacyConsent
+import com.fithall.app.data.PrivacyPolicy
 import com.fithall.app.data.UnavailableFoodDatabase
 import com.fithall.app.domain.CheckInCalculator
 import com.fithall.app.domain.MacroCalculator
@@ -33,6 +35,7 @@ import com.fithall.app.model.WorkoutPlan
 import com.fithall.app.platform.nowMillis
 import com.fithall.app.platform.todayKey
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -67,6 +70,7 @@ data class AppState(
     val weights: List<WeightEntry> = emptyList(),
     val checkIns: List<WeeklyCheckIn> = emptyList(),
     val adjustment: TargetAdjustment = TargetAdjustment(),
+    val consent: PrivacyConsent? = null,
     val today: String = todayKey(),
     val scan: ScanState = ScanState.Idle,
     val generatingWorkout: Boolean = false,
@@ -75,6 +79,8 @@ data class AppState(
     val runningCheckIn: Boolean = false,
     val error: String? = null,
 ) {
+    /** True until the user accepts the current privacy policy version. */
+    val needsConsent: Boolean get() = consent?.version != PrivacyPolicy.VERSION
     val targets: MacroTargets? get() = profile?.let { MacroCalculator.targets(it, adjustment) }
     /** Null when check-ins may lower calories; otherwise the reason they can't. */
     val calorieCutBlockedReason: String?
@@ -92,6 +98,8 @@ class AppViewModel(
     private val repository: AppRepository,
     private val ai: AiService,
     private val foods: FoodDatabase = UnavailableFoodDatabase("Barcode lookup is not available on this platform."),
+    /** Deletes the platform's temporary files (cached photos, exports) when the user deletes their data. */
+    private val clearCaches: () -> Unit = {},
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(
@@ -106,6 +114,7 @@ class AppViewModel(
             weights = repository.weights,
             checkIns = repository.checkIns,
             adjustment = repository.targetAdjustment,
+            consent = repository.consent,
         )
     )
     val state: StateFlow<AppState> = _state.asStateFlow()
@@ -113,6 +122,29 @@ class AppViewModel(
     fun refreshDay() = _state.update { it.copy(today = todayKey()) }
 
     fun dismissError() = _state.update { it.copy(error = null) }
+
+    // ---- Privacy ----
+
+    fun acceptConsent() {
+        val consent = PrivacyConsent(PrivacyPolicy.VERSION, nowMillis())
+        repository.consent = consent
+        _state.update { it.copy(consent = consent) }
+    }
+
+    /** Everything the user has entered, as a JSON document. */
+    fun exportData(): String = repository.exportJson(exportedAt = todayKey())
+
+    /**
+     * Deletes everything FitHall keeps on this device and returns to the first screen. Nothing
+     * needs deleting on the server: it doesn't store users' data. Running AI requests are
+     * cancelled first so their results can't be written back afterwards.
+     */
+    fun deleteAllData() {
+        viewModelScope.coroutineContext.cancelChildren()
+        repository.clearAll()
+        clearCaches()
+        _state.value = AppState()
+    }
 
     // ---- Profile ----
 

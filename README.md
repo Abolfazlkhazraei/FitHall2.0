@@ -105,6 +105,7 @@ also shrunk with R8, so the APK is about a tenth of the debug size. Add to `loca
 
 ```properties
 RELEASE_BACKEND_URL=https://api.your-domain.com
+PRIVACY_POLICY_URL=https://your-domain.com/privacy
 RELEASE_STORE_FILE=/path/to/upload-key.jks
 RELEASE_STORE_PASSWORD=...
 RELEASE_KEY_ALIAS=upload
@@ -125,6 +126,20 @@ enroll in Play App Signing when you first upload. Then build the bundle for Goog
 The `.aab` is in `composeApp/build/outputs/bundle/release/`. Increase `VERSION_CODE` for every
 upload. Shrinking can break code that relies on reflection, so test the release build itself
 (an internal testing track is the easiest way) before promoting it.
+
+## Privacy
+
+- The app opens with a consent screen that explains what's sent where, and asks for explicit
+  agreement to processing health data plus confirmation of 18+. Bumping `PrivacyPolicy.VERSION`
+  (in `AppRepository.kt`) asks everyone again.
+- Profile → Your data has the privacy policy link, **Export my data** (a JSON file through the
+  share sheet) and **Delete all my data** (wipes the device storage, cached files and device
+  token, and withdraws consent).
+- The user's name never leaves the device, camera photos are deleted after processing, and the
+  server stores no user data.
+- [`docs/privacy-policy.md`](docs/privacy-policy.md) is a draft policy matching this behaviour:
+  fill in the bracketed items, have it reviewed, and host it at `PRIVACY_POLICY_URL`.
+  [`docs/play-data-safety.md`](docs/play-data-safety.md) has the matching Play Console answers.
 
 ## Safety rules
 

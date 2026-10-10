@@ -10,6 +10,7 @@ import com.fithall.app.ai.PlayIntegrityAttestation
 import com.fithall.app.data.AppRepository
 import com.fithall.app.data.OpenFoodFactsDatabase
 import com.fithall.app.platform.SharedPreferencesStore
+import com.fithall.app.platform.clearAppCaches
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -25,7 +26,13 @@ class MainActivity : ComponentActivity() {
         )
 
         setContent {
-            App(repository, ai, OpenFoodFactsDatabase())
+            App(
+                repository = repository,
+                ai = ai,
+                foods = OpenFoodFactsDatabase(),
+                privacyPolicyUrl = BuildConfig.PRIVACY_POLICY_URL,
+                clearCaches = { clearAppCaches(applicationContext) },
+            )
         }
     }
 }

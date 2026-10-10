@@ -60,7 +60,7 @@ fun OnboardingScreen(onSave: (UserProfile) -> Unit) {
 }
 
 @Composable
-fun ProfileScreen(profile: UserProfile, adjustment: TargetAdjustment, viewModel: AppViewModel) {
+fun ProfileScreen(profile: UserProfile, adjustment: TargetAdjustment, privacyPolicyUrl: String, viewModel: AppViewModel) {
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -97,6 +97,7 @@ fun ProfileScreen(profile: UserProfile, adjustment: TargetAdjustment, viewModel:
                 viewModel.generateNutritionPlan()
             },
         )
+        YourDataSection(privacyPolicyUrl, viewModel)
     }
 }
 

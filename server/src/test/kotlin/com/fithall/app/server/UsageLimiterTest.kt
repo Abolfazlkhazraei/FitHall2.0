@@ -107,4 +107,14 @@ class UsageLimiterTest {
         now += 3_600_000
         assertTrue(limiter.tryRegister("1.2.3.4"))
     }
+
+    @Test
+    fun signUpIpsAreForgottenAfterAnHour() {
+        limiter.tryRegister("1.1.1.1")
+        limiter.tryRegister("2.2.2.2")
+        assertEquals(2, limiter.rememberedIpCount())
+        now += 3_600_000
+        limiter.tryRegister("3.3.3.3")
+        assertEquals(1, limiter.rememberedIpCount(), "IPs older than an hour must be dropped")
+    }
 }

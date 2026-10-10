@@ -33,6 +33,7 @@ import com.fithall.app.data.AppRepository
 import com.fithall.app.data.FoodDatabase
 import com.fithall.app.data.UnavailableFoodDatabase
 import com.fithall.app.ui.CoachScreen
+import com.fithall.app.ui.ConsentScreen
 import com.fithall.app.ui.FitHallTheme
 import com.fithall.app.ui.NutritionScreen
 import com.fithall.app.ui.OnboardingScreen
@@ -53,11 +54,17 @@ fun App(
     repository: AppRepository,
     ai: AiService,
     foods: FoodDatabase = UnavailableFoodDatabase("Barcode lookup is not available on this platform."),
+    privacyPolicyUrl: String = "",
+    clearCaches: () -> Unit = {},
 ) {
-    val viewModel = viewModel { AppViewModel(repository, ai, foods) }
+    val viewModel = viewModel { AppViewModel(repository, ai, foods, clearCaches) }
     val state by viewModel.state.collectAsStateWithLifecycle()
 
     FitHallTheme {
+        if (state.needsConsent) {
+            ConsentScreen(privacyPolicyUrl, onAccept = viewModel::acceptConsent)
+            return@FitHallTheme
+        }
         val profile = state.profile
         if (profile == null) {
             OnboardingScreen(onSave = viewModel::saveProfile)
@@ -97,7 +104,7 @@ fun App(
                     Tab.WORKOUTS -> WorkoutScreen(state, viewModel)
                     Tab.PROGRESS -> ProgressScreen(state, viewModel)
                     Tab.COACH -> CoachScreen(state, viewModel)
-                    Tab.PROFILE -> ProfileScreen(profile, state.adjustment, viewModel)
+                    Tab.PROFILE -> ProfileScreen(profile, state.adjustment, privacyPolicyUrl, viewModel)
                 }
             }
         }

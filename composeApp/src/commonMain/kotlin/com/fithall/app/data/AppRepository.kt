@@ -10,6 +10,9 @@ import com.fithall.app.model.WeightEntry
 import com.fithall.app.model.WorkoutLog
 import com.fithall.app.model.WorkoutPlan
 import kotlinx.serialization.KSerializer
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 
@@ -17,6 +20,8 @@ import kotlinx.serialization.json.Json
 interface KeyValueStore {
     fun get(key: String): String?
     fun put(key: String, value: String?)
+    /** Removes everything, including the device token used by BackendAiService. */
+    fun clear()
 }
 
 class InMemoryKeyValueStore : KeyValueStore {
@@ -25,6 +30,16 @@ class InMemoryKeyValueStore : KeyValueStore {
     override fun put(key: String, value: String?) {
         if (value == null) map.remove(key) else map[key] = value
     }
+    override fun clear() = map.clear()
+}
+
+/** What the user agreed to on the consent screen. A new policy [version] asks again. */
+@Serializable
+data class PrivacyConsent(val version: Int, val acceptedAtMillis: Long)
+
+object PrivacyPolicy {
+    /** Bump when the privacy policy or the data the app sends changes in a way users must re-accept. */
+    const val VERSION = 1
 }
 
 /** On-device persistence for everything the user creates. Values are stored as JSON. */
@@ -73,6 +88,26 @@ class AppRepository(private val store: KeyValueStore) {
         get() = read(KEY_TARGET_ADJUSTMENT, TargetAdjustment.serializer()) ?: TargetAdjustment()
         set(value) = write(KEY_TARGET_ADJUSTMENT, TargetAdjustment.serializer(), value)
 
+    var consent: PrivacyConsent?
+        get() = read(KEY_CONSENT, PrivacyConsent.serializer())
+        set(value) = write(KEY_CONSENT, PrivacyConsent.serializer(), value)
+
+    /** Deletes everything FitHall stores on this device. */
+    fun clearAll() = store.clear()
+
+    /** Everything the user has entered, as one JSON document they can keep (data portability). */
+    fun exportJson(exportedAt: String): String {
+        val sections = EXPORTED_KEYS.mapNotNull { (key, label) ->
+            store.get(key)?.let { raw -> runCatching { label to json.parseToJsonElement(raw) }.getOrNull() }
+        }
+        val document = JsonObject(
+            mapOf("app" to JsonPrimitive("FitHall"), "exportedAt" to JsonPrimitive(exportedAt)) + sections
+        )
+        return prettyJson.encodeToString(JsonObject.serializer(), document)
+    }
+
+    private val prettyJson = Json { prettyPrint = true }
+
     private fun <T> read(key: String, serializer: KSerializer<T>): T? =
         store.get(key)?.let { raw -> runCatching { json.decodeFromString(serializer, raw) }.getOrNull() }
 
@@ -90,5 +125,21 @@ class AppRepository(private val store: KeyValueStore) {
         const val KEY_WEIGHTS = "body_weights"
         const val KEY_CHECK_INS = "check_ins"
         const val KEY_TARGET_ADJUSTMENT = "target_adjustment"
+        const val KEY_CONSENT = "privacy_consent"
+
+        /** Storage key to section name. The device token is left out: it's not the user's data. */
+        val EXPORTED_KEYS = listOf(
+            KEY_PROFILE to "profile",
+            KEY_TARGET_ADJUSTMENT to "targetAdjustment",
+            KEY_MEALS to "meals",
+            KEY_WEIGHTS to "bodyWeights",
+            KEY_WORKOUT_LOGS to "workouts",
+            KEY_ACTIVE_WORKOUT to "workoutInProgress",
+            KEY_WORKOUT to "workoutPlan",
+            KEY_NUTRITION to "mealPlan",
+            KEY_CHECK_INS to "weeklyCheckIns",
+            KEY_CHAT to "coachChat",
+            KEY_CONSENT to "privacyConsent",
+        )
     }
 }

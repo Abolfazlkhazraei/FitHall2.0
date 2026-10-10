@@ -35,3 +35,12 @@ interface BarcodeScanner {
 
 @Composable
 expect fun rememberBarcodeScanner(onBarcode: (String) -> Unit, onError: (String) -> Unit): BarcodeScanner
+
+/** Hands a file to the user, e.g. through the system share sheet, so they can save or send it. */
+interface FileExporter {
+    val isAvailable: Boolean
+    fun export(fileName: String, mimeType: String, content: String)
+}
+
+@Composable
+expect fun rememberFileExporter(): FileExporter
