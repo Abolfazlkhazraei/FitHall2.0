@@ -10,6 +10,8 @@ data class ServerConfig(
     val trustProxy: Boolean = false,
     val limits: UsageLimits = UsageLimits(),
     val integrity: IntegrityConfig = IntegrityConfig(),
+    /** Enables GET /admin/usage with `Authorization: Bearer <token>`. Null disables it. */
+    val adminToken: String? = null,
 ) {
     companion object {
         fun fromEnv(env: Map<String, String> = System.getenv()): ServerConfig {
@@ -33,6 +35,9 @@ data class ServerConfig(
                     registrationsPerIpPerHour = int("REGISTRATIONS_PER_IP_PER_HOUR", defaults.registrationsPerIpPerHour),
                     limitedUnitsPerDay = int("LIMITED_UNITS_PER_DAY", defaults.limitedUnitsPerDay),
                 ),
+                adminToken = env["ADMIN_TOKEN"]?.takeIf { it.isNotBlank() }?.also {
+                    require(it.length >= 32) { "ADMIN_TOKEN must be at least 32 characters" }
+                },
                 integrity = IntegrityConfig(
                     mode = env["INTEGRITY_MODE"]?.let { IntegrityMode.valueOf(it.uppercase()) } ?: IntegrityMode.OFF,
                     packageName = env["APP_PACKAGE_NAME"] ?: "com.fithall.app",

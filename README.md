@@ -42,6 +42,7 @@ On Windows PowerShell use `$env:ANTHROPIC_API_KEY="sk-ant-..."` and `$env:TOKEN_
 | `INTEGRITY_REQUIRE_DEVICE` | `true` | Require `MEETS_DEVICE_INTEGRITY`; `false` accepts `MEETS_BASIC_INTEGRITY`. |
 | `INTEGRITY_REQUIRE_LICENSED` | `false` | Require the app to have been installed from Google Play. |
 | `APP_CERT_SHA256` | none | Optional comma-separated signing certificate digests, as Play reports them. |
+| `ADMIN_TOKEN` | none | Enables the spend report at `GET /admin/usage` (32+ characters). See "AI costs" below. |
 | `GOOGLE_APPLICATION_CREDENTIALS` | none | Service account key used to decode integrity tokens (needed unless `INTEGRITY_MODE=off`). |
 
 ### 2. Point the app at it
@@ -75,6 +76,32 @@ and check-in requests can take up to a couple of minutes, so allow long request 
 **Before scaling out:** usage limits are kept in memory, so they're per server instance. Run a
 single instance, or move the counters in `UsageLimiter` to a shared store such as Redis. Device
 tokens are anonymous and can't be revoked individually.
+
+### AI costs
+
+Every Claude response is logged on one line, with no content and no device id:
+
+```
+ai_usage op=MEAL_PHOTO model=claude-opus-5-5 input=1840 output=612 cache_read=0 cache_write=0 cost_usd=0.019600 ms=6120 stop=end_turn
+```
+
+The server also keeps daily totals for the last 31 days in memory (they reset when it restarts;
+the log lines are the permanent record). With `ADMIN_TOKEN` set, fetch them with:
+
+```shell
+curl -H "Authorization: Bearer $ADMIN_TOKEN" https://your-server/admin/usage
+```
+
+For each day and operation you get requests, tokens, total and average cost, and **cost per
+allowance unit**. The top of the report turns that into `maxCostPerDevicePerDayUsd`, which is what
+one device costs per day if it uses its whole `DEVICE_UNITS_PER_DAY`. Compare it with what you
+plan to charge before choosing limits or a price. For the current day there's also the spread of
+cost across active devices (median, 90th percentile, max).
+
+Costs are estimates from list prices in `ModelPricing` (in `AiUsage.kt`). Check them against
+https://www.anthropic.com/pricing, and use the Anthropic Console's usage page and a monthly spend
+limit as the source of truth. When a request is declined and retried on a fallback model, only the
+final attempt's tokens are counted.
 
 ### 4. Turn on Play Integrity
 

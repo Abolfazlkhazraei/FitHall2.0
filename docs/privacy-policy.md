@@ -52,9 +52,10 @@ dietary notes; a meal photo or description; recent workouts and weigh-ins; your 
 and your coach messages.
 
 **Our server does not store this data.** It keeps no database of users or their content and
-doesn't log request contents. For rate limiting it keeps, in memory only, a count of requests per
-device token for the current day and, for up to one hour, the IP addresses that created new
-device tokens. Our hosting provider, [HOSTING PROVIDER], may keep standard connection logs (such
+doesn't log request contents. For rate limiting and cost monitoring it keeps, in memory only, the
+number of requests and the estimated AI cost per device token for the current day, and, for up
+to one hour, the IP addresses that created new device tokens. Its logs record each AI request's
+type, token counts and estimated cost, without any content or device token. Our hosting provider, [HOSTING PROVIDER], may keep standard connection logs (such
 as IP addresses) under its own policy for [RETENTION PERIOD].
 
 **Anthropic** processes the data as our service provider under its commercial terms.

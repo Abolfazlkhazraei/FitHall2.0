@@ -43,12 +43,15 @@ import io.ktor.utils.io.readRemaining
 import kotlinx.io.readString
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
+import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
+import java.security.MessageDigest
 
 fun main() {
     val config = ServerConfig.fromEnv()
+    val costs = CostTracker(config.limits)
     embeddedServer(Netty, port = config.port, host = "0.0.0.0") {
-        fitHallModule(config, ClaudeAiService(config.anthropicApiKey))
+        fitHallModule(config, ClaudeAiService(config.anthropicApiKey, usage = costs), costs = costs)
     }.start(wait = true)
 }
 
@@ -68,6 +71,7 @@ fun Application.fitHallModule(
     limiter: UsageLimiter = UsageLimiter(config.limits),
     tokens: DeviceTokens = DeviceTokens(config.tokenSecret),
     challenges: Challenges = Challenges(config.tokenSecret),
+    costs: CostTracker = CostTracker(config.limits),
     // Created eagerly so a missing Google credential fails at startup, not on the first sign-up.
     integrity: IntegrityVerifier =
         if (config.integrity.mode == IntegrityMode.OFF) NoIntegrityVerifier else GooglePlayIntegrityVerifier(config.integrity),
@@ -95,6 +99,19 @@ fun Application.fitHallModule(
 
     routing {
         get(Api.HEALTH) { call.respondText("ok") }
+
+        // Spend report for you, not the app. Disabled unless ADMIN_TOKEN is set.
+        get(ADMIN_USAGE_PATH) {
+            val expected = config.adminToken
+            val given = call.request.headers[HttpHeaders.Authorization]?.removePrefix("Bearer ")?.trim()
+            if (expected == null) {
+                call.respond(HttpStatusCode.NotFound, ApiError(ErrorCodes.INVALID_REQUEST, "Not found."))
+            } else if (given == null || !MessageDigest.isEqual(expected.toByteArray(), given.toByteArray())) {
+                throw ApiException(HttpStatusCode.Unauthorized, ErrorCodes.UNAUTHORIZED, "Admin token required.")
+            } else {
+                call.respond(costs.report())
+            }
+        }
 
         post(Api.CHALLENGE) {
             call.respond(ChallengeResponse(challenges.issue()))
@@ -140,6 +157,7 @@ fun Application.fitHallModule(
     }
 }
 
+const val ADMIN_USAGE_PATH = "/admin/usage"
 private const val DEFAULT_BODY_LIMIT = 512L * 1024
 // Base64 inflates the image by a third, plus a little JSON around it.
 private const val PHOTO_BODY_LIMIT = Api.MAX_IMAGE_BYTES * 4L / 3 + 16 * 1024
@@ -158,7 +176,7 @@ class AiCall(
             Decision.Allowed -> Unit
         }
         return try {
-            block()
+            withContext(AiRequestContext(deviceId, operation)) { block() }
         } catch (e: AiException) {
             // Don't bill the user's allowance for failures on our side.
             if (e.kind in setOf(AiErrorKind.UNAVAILABLE, AiErrorKind.RATE_LIMITED, AiErrorKind.CONFIGURATION)) {

@@ -45,7 +45,11 @@ import kotlinx.serialization.json.longOrNull
 import java.util.Base64
 
 /** Implements the app's AI features with the Claude API. Runs on the server, which holds the key. */
-class ClaudeAiService(apiKey: String) : AiService {
+class ClaudeAiService(
+    apiKey: String,
+    /** Receives token counts for every response, refusals included. */
+    private val usage: UsageRecorder = UsageRecorder {},
+) : AiService {
 
     private val client: AnthropicClient = AnthropicOkHttpClient.builder()
         .apiKey(apiKey)
@@ -138,6 +142,8 @@ class ClaudeAiService(apiKey: String) : AiService {
 
     /** Sends the request off the main thread and returns the response text. */
     private suspend fun send(params: MessageCreateParams): String = withContext(Dispatchers.IO) {
+        val request = coroutineContext[AiRequestContext]
+        val started = System.currentTimeMillis()
         val message: Message = try {
             client.messages().create(params)
         } catch (e: UnauthorizedException) {
@@ -155,6 +161,22 @@ class ClaudeAiService(apiKey: String) : AiService {
         } catch (e: AnthropicIoException) {
             throw AiException("Couldn't reach the AI service. Please try again.", AiErrorKind.UNAVAILABLE, e)
         }
+
+        // Record before checking the stop reason: refused and cut-off responses are billed too.
+        val tokens = message.usage()
+        usage.record(
+            UsageEvent(
+                operation = request?.operation,
+                deviceId = request?.deviceId,
+                model = message.model().asString(),
+                inputTokens = tokens.inputTokens(),
+                outputTokens = tokens.outputTokens(),
+                cacheReadTokens = tokens.cacheReadInputTokens().orElse(0L),
+                cacheWriteTokens = tokens.cacheCreationInputTokens().orElse(0L),
+                durationMillis = System.currentTimeMillis() - started,
+                stopReason = message.stopReason().map { it.toString() }.orElse("unknown"),
+            )
+        )
 
         when (message.stopReason().orElse(null)) {
             StopReason.REFUSAL ->
