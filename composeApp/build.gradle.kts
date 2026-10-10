@@ -84,11 +84,11 @@ kotlin {
 }
 
 android {
-    namespace = "com.example.fithall"
+    namespace = "com.fithall.app"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
 
     defaultConfig {
-        applicationId = "com.example.fithall"
+        applicationId = "com.fithall.app"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1
@@ -122,11 +122,11 @@ dependencies {
 
 compose.desktop {
     application {
-        mainClass = "com.example.fithall.MainKt"
+        mainClass = "com.fithall.app.MainKt"
 
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
-            packageName = "com.example.fithall"
+            packageName = "com.fithall.app"
             packageVersion = "1.0.0"
         }
     }

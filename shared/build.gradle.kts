@@ -25,7 +25,7 @@ kotlin {
 }
 
 android {
-    namespace = "com.example.fithall.shared"
+    namespace = "com.fithall.app.shared"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
     defaultConfig {
         minSdk = libs.versions.android.minSdk.get().toInt()

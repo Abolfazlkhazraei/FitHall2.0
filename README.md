@@ -38,7 +38,7 @@ On Windows PowerShell use `$env:ANTHROPIC_API_KEY="sk-ant-..."` and `$env:TOKEN_
 | `REGISTRATIONS_PER_IP_PER_HOUR` | `20` | Slows down token farming. |
 | `INTEGRITY_MODE` | `off` | Play Integrity at registration: `off`, `monitor` (check and log, everyone gets full access) or `enforce`. See below. |
 | `LIMITED_UNITS_PER_DAY` | `8` | In `enforce` mode, the allowance for devices that fail the check (no Google Play, rooted, modified app). `0` refuses them. |
-| `APP_PACKAGE_NAME` | `com.example.fithall` | Verdicts for any other package are rejected. |
+| `APP_PACKAGE_NAME` | `com.fithall.app` | Verdicts for any other package are rejected. |
 | `INTEGRITY_REQUIRE_DEVICE` | `true` | Require `MEETS_DEVICE_INTEGRITY`; `false` accepts `MEETS_BASIC_INTEGRITY`. |
 | `INTEGRITY_REQUIRE_LICENSED` | `false` | Require the app to have been installed from Google Play. |
 | `APP_CERT_SHA256` | none | Optional comma-separated signing certificate digests, as Play reports them. |

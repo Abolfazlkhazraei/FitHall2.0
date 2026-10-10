@@ -7,7 +7,7 @@ plugins {
     application
 }
 
-group = "com.example.fithall"
+group = "com.fithall.app"
 version = "1.0.0"
 
 kotlin {
@@ -15,7 +15,7 @@ kotlin {
 }
 
 application {
-    mainClass.set("com.example.fithall.server.ApplicationKt")
+    mainClass.set("com.fithall.app.server.ApplicationKt")
 }
 
 ktor {
