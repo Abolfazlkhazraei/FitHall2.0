@@ -97,6 +97,47 @@ Play (an internal testing track is enough); sideloaded debug builds can't pass.
 Existing installs re-register automatically the first time they talk to the updated server.
 Google's default quota for decoding tokens is 10,000 a day, and each install uses one.
 
+## Release builds
+
+A release build refuses to start until it has an HTTPS server address and a signing key. It's
+also shrunk with R8, so the APK is about a tenth of the debug size. Add to `local.properties`
+(or set environment variables with the same names on CI):
+
+```properties
+RELEASE_BACKEND_URL=https://api.your-domain.com
+RELEASE_STORE_FILE=/path/to/upload-key.jks
+RELEASE_STORE_PASSWORD=...
+RELEASE_KEY_ALIAS=upload
+RELEASE_KEY_PASSWORD=...
+VERSION_CODE=1
+VERSION_NAME=1.0
+```
+
+Create the upload key once with
+`keytool -genkeypair -keystore upload-key.jks -alias upload -keyalg RSA -keysize 2048 -validity 10000`,
+keep it and its passwords somewhere safe outside the repo (`*.jks` files are git-ignored), and
+enroll in Play App Signing when you first upload. Then build the bundle for Google Play:
+
+```shell
+./gradlew :composeApp:bundleRelease
+```
+
+The `.aab` is in `composeApp/build/outputs/bundle/release/`. Increase `VERSION_CODE` for every
+upload. Shrinking can break code that relies on reflection, so test the release build itself
+(an internal testing track is the easiest way) before promoting it.
+
+## Safety rules
+
+These override the user's choices and anything the AI suggests (`shared/.../model/Safety.kt`):
+
+- FitHall is for adults: the profile and the server accept ages 18 to 100 only.
+- If BMI is below 18.5, "Lose fat" can't be chosen, and an existing fat-loss goal is treated as
+  maintenance. Targets never drop below maintenance, and earlier check-in cuts are ignored.
+- Check-ins can't lower calories while the user is underweight or losing more than 1% of body
+  weight a week; calories never go below 1,500 kcal (male) / 1,200 kcal (female).
+- The meal-plan, coach and check-in prompts forbid extreme restriction and steer users who
+  show signs of disordered eating to professional help.
+
 ## How it's organised
 
 | Area | Where |

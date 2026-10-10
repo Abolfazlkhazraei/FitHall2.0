@@ -95,7 +95,7 @@ private fun PendingCheckInCard(checkIn: WeeklyCheckIn, state: AppState, viewMode
                 val current = state.targets ?: return@Column
                 val proposed = MacroCalculator.targets(
                     profile,
-                    CheckInCalculator.boundedAdjustment(state.adjustment, result.calorieChange, result.proteinChange),
+                    CheckInCalculator.boundedAdjustment(state.adjustment, result.calorieChange, result.proteinChange, state.canCutCalories),
                 )
                 ChangeRow(
                     checked = applyNutrition,
@@ -110,6 +110,14 @@ private fun PendingCheckInCard(checkIn: WeeklyCheckIn, state: AppState, viewMode
                     },
                     detail = result.nutritionReason,
                 )
+                val blocked = state.calorieCutBlockedReason
+                if (result.calorieChange < 0 && blocked != null) {
+                    Text(
+                        "FitHall won't lower your calories while your $blocked.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
             } else if (result.nutritionReason.isNotBlank()) {
                 Text("Nutrition: keep your current targets. ${result.nutritionReason}", style = MaterialTheme.typography.bodyMedium)
             }

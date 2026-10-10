@@ -21,6 +21,25 @@ val backendUrl: String = localProperties.getProperty("BACKEND_URL") ?: "http://1
 // Google Cloud project linked to the app in the Play Console; enables Play Integrity. 0 = off.
 val playCloudProjectNumber: String = localProperties.getProperty("PLAY_CLOUD_PROJECT_NUMBER")?.trim()?.ifEmpty { null } ?: "0"
 
+// Release settings come from local.properties, or environment variables of the same name on CI.
+// They're checked before any release build starts (see checkReleaseConfig below).
+fun releaseSetting(name: String): String? =
+    localProperties.getProperty(name)?.trim()?.ifEmpty { null } ?: System.getenv(name)?.trim()?.ifEmpty { null }
+
+val releaseBackendUrl = releaseSetting("RELEASE_BACKEND_URL")
+val releaseStoreFile = releaseSetting("RELEASE_STORE_FILE")?.let { rootProject.file(it) }
+val releaseStorePassword = releaseSetting("RELEASE_STORE_PASSWORD")
+val releaseKeyAlias = releaseSetting("RELEASE_KEY_ALIAS")
+val releaseKeyPassword = releaseSetting("RELEASE_KEY_PASSWORD")
+val hasReleaseSigning = releaseStoreFile != null && releaseStorePassword != null && releaseKeyAlias != null && releaseKeyPassword != null
+
+val releaseProblems: List<String> = buildList {
+    if (releaseBackendUrl == null) add("RELEASE_BACKEND_URL is not set (your deployed server, e.g. https://api.fithall.app)")
+    else if (!releaseBackendUrl.startsWith("https://")) add("RELEASE_BACKEND_URL must start with https:// (got $releaseBackendUrl)")
+    if (!hasReleaseSigning) add("Signing is not configured: set RELEASE_STORE_FILE, RELEASE_STORE_PASSWORD, RELEASE_KEY_ALIAS and RELEASE_KEY_PASSWORD")
+    else if (releaseStoreFile?.exists() != true) add("RELEASE_STORE_FILE not found: $releaseStoreFile")
+}
+
 kotlin {
     androidTarget {
         compilerOptions {
@@ -91,8 +110,9 @@ android {
         applicationId = "com.fithall.app"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
-        versionCode = 1
-        versionName = "1.0"
+        // Bump VERSION_CODE for every upload to Google Play.
+        versionCode = releaseSetting("VERSION_CODE")?.toInt() ?: 1
+        versionName = releaseSetting("VERSION_NAME") ?: "1.0"
         buildConfigField("String", "BACKEND_URL", "\"$backendUrl\"")
         buildConfigField("long", "PLAY_CLOUD_PROJECT_NUMBER", "${playCloudProjectNumber}L")
     }
@@ -105,9 +125,23 @@ android {
             excludes += "/META-INF/{DEPENDENCIES,LICENSE*,NOTICE*,INDEX.LIST,versions/9/previous-compilation-data.bin}"
         }
     }
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = releaseStoreFile
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
     buildTypes {
         getByName("release") {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = signingConfigs.findByName("release")
+            buildConfigField("String", "BACKEND_URL", "\"${releaseBackendUrl.orEmpty()}\"")
         }
     }
     compileOptions {
@@ -119,6 +153,19 @@ android {
 dependencies {
     debugImplementation(libs.compose.uiTooling)
 }
+
+// Fails a release build up front, with every problem listed, instead of producing an app that
+// points at the emulator or can't be uploaded.
+val checkReleaseConfig by tasks.registering {
+    // A plain String, so the configuration cache can store it.
+    val problems: String = releaseProblems.joinToString("\n") { "  - $it" }
+    doLast {
+        if (problems.isNotEmpty()) {
+            throw GradleException("Release build is not configured:\n$problems\nSee README > Release builds.")
+        }
+    }
+}
+tasks.matching { it.name == "preReleaseBuild" }.configureEach { dependsOn(checkReleaseConfig) }
 
 compose.desktop {
     application {

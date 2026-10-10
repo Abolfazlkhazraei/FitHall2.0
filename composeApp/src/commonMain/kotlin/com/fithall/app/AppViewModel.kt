@@ -76,6 +76,10 @@ data class AppState(
     val error: String? = null,
 ) {
     val targets: MacroTargets? get() = profile?.let { MacroCalculator.targets(it, adjustment) }
+    /** Null when check-ins may lower calories; otherwise the reason they can't. */
+    val calorieCutBlockedReason: String?
+        get() = profile?.let { CheckInCalculator.calorieCutBlockedReason(it, weights, today) }
+    val canCutCalories: Boolean get() = calorieCutBlockedReason == null
     val pendingCheckIn: WeeklyCheckIn? get() = checkIns.lastOrNull { it.status == CheckInStatus.PENDING }
     val checkInDue: Boolean
         get() = pendingCheckIn == null && CheckInCalculator.isDue(checkIns, today, workoutLogs, weights, meals)
@@ -400,7 +404,7 @@ class AppViewModel(
         val result = checkIn.result
 
         val adjustment = if (applyNutrition) {
-            CheckInCalculator.boundedAdjustment(s.adjustment, result.calorieChange, result.proteinChange)
+            CheckInCalculator.boundedAdjustment(s.adjustment, result.calorieChange, result.proteinChange, s.canCutCalories)
         } else {
             s.adjustment
         }

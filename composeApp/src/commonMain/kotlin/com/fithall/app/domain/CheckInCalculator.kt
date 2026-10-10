@@ -5,6 +5,7 @@ import com.fithall.app.model.CheckInStatus
 import com.fithall.app.model.Exercise
 import com.fithall.app.model.MacroTargets
 import com.fithall.app.model.MealEntry
+import com.fithall.app.model.Safety
 import com.fithall.app.model.TargetAdjustment
 import com.fithall.app.model.TrainingChange
 import com.fithall.app.model.UserProfile
@@ -133,6 +134,13 @@ object CheckInCalculator {
             appendLine("(Includes earlier check-in adjustments of ${signed(adjustment.calories)} kcal and ${signed(adjustment.proteinG)} g protein.)")
         }
         appendLine("Minimum allowed intake: ${MacroCalculator.minimumCalories(profile)} kcal")
+        appendLine("BMI: ${formatNumber(Safety.bmi(profile))}")
+        calorieCutBlockedReason(profile, weights, today)?.let {
+            appendLine("SAFETY RULE: calories must not be reduced this week because $it. Do not propose a negative calorieChange.")
+        }
+        MacroCalculator.safetyNotice(profile)?.let {
+            appendLine("The user's goal is 'Lose fat', but they are underweight, so the app sets maintenance targets instead.")
+        }
         appendLine()
 
         appendLine("## Body weight")
@@ -204,9 +212,31 @@ object CheckInCalculator {
         }
     }.trim()
 
-    /** Bounds a proposed change: per-check-in step limits, then overall limits on the running total. */
-    fun boundedAdjustment(current: TargetAdjustment, calorieChange: Int, proteinChange: Int): TargetAdjustment {
-        val calories = (current.calories + calorieChange.coerceIn(-MAX_CALORIE_STEP, MAX_CALORIE_STEP))
+    /**
+     * Why calories must not go down right now, or null if a cut is allowed: the user is
+     * underweight, or already losing faster than is safe.
+     */
+    fun calorieCutBlockedReason(profile: UserProfile, weights: List<WeightEntry>, today: String): String? {
+        if (Safety.isUnderweight(profile)) return "BMI is below ${Safety.UNDERWEIGHT_BMI}"
+        val rate = weightRateKgPerWeek(weights, today) ?: return null
+        val weeklyLossPercent = -rate / profile.weightKg * 100
+        return if (weeklyLossPercent > Safety.MAX_SAFE_WEEKLY_LOSS_PERCENT) {
+            "weight is dropping by more than ${formatNumber(Safety.MAX_SAFE_WEEKLY_LOSS_PERCENT)}% of body weight per week"
+        } else null
+    }
+
+    /**
+     * Bounds a proposed change: per-check-in step limits, then overall limits on the running total.
+     * With [allowCalorieCut] false, a proposed decrease is ignored (increases still apply).
+     */
+    fun boundedAdjustment(
+        current: TargetAdjustment,
+        calorieChange: Int,
+        proteinChange: Int,
+        allowCalorieCut: Boolean = true,
+    ): TargetAdjustment {
+        val step = calorieChange.coerceIn(if (allowCalorieCut) -MAX_CALORIE_STEP else 0, MAX_CALORIE_STEP)
+        val calories = (current.calories + step)
             .coerceIn(-MacroCalculator.MAX_CALORIE_ADJUSTMENT, MacroCalculator.MAX_CALORIE_ADJUSTMENT)
         val protein = (current.proteinG + proteinChange.coerceIn(-MAX_PROTEIN_STEP, MAX_PROTEIN_STEP))
             .coerceIn(-MacroCalculator.MAX_PROTEIN_ADJUSTMENT, MacroCalculator.MAX_PROTEIN_ADJUSTMENT)

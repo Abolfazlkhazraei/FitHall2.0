@@ -67,6 +67,7 @@ import com.fithall.app.MealSource
 import com.fithall.app.data.PackagedFood
 import com.fithall.app.data.PackagedFoods
 import com.fithall.app.data.PortionUnit
+import com.fithall.app.domain.MacroCalculator
 import com.fithall.app.platform.VoiceInput
 import com.fithall.app.platform.rememberBarcodeScanner
 import com.fithall.app.platform.rememberVoiceInput
@@ -134,6 +135,7 @@ fun NutritionScreen(state: AppState, viewModel: AppViewModel) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item { Text("Today", style = MaterialTheme.typography.headlineSmall) }
+        state.profile?.let(MacroCalculator::safetyNotice)?.let { notice -> item { SafetyNotice(notice) } }
         item { MacroSummaryCard(eaten = state.todaysTotals, targets = targets) }
         item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -36,6 +36,7 @@ import com.fithall.app.model.ActivityLevel
 import com.fithall.app.model.Equipment
 import com.fithall.app.model.Experience
 import com.fithall.app.model.Goal
+import com.fithall.app.model.Safety
 import com.fithall.app.model.Sex
 import com.fithall.app.model.TargetAdjustment
 import com.fithall.app.model.UserProfile
@@ -66,6 +67,7 @@ fun ProfileScreen(profile: UserProfile, adjustment: TargetAdjustment, viewModel:
     ) {
         Text("Your profile", style = MaterialTheme.typography.headlineSmall)
         val targets = MacroCalculator.targets(profile, adjustment)
+        MacroCalculator.safetyNotice(profile)?.let { SafetyNotice(it) }
         Text(
             "Maintenance ≈ ${MacroCalculator.tdee(profile).roundToInt()} kcal/day · " +
                 "Target ${targets.calories} kcal · P ${targets.proteinG} g · C ${targets.carbsG} g · F ${targets.fatG} g",
@@ -115,10 +117,13 @@ private fun ProfileForm(initial: UserProfile?, saveLabel: String, onSave: (UserP
     var diet by rememberSaveable { mutableStateOf(initial?.dietaryNotes ?: "") }
     var injuries by rememberSaveable { mutableStateOf(initial?.injuries ?: "") }
 
-    val ageValue = age.toIntOrNull()?.takeIf { it in 13..100 }
+    val ageNumber = age.toIntOrNull()
+    val ageValue = ageNumber?.takeIf { it in Safety.MIN_AGE..Safety.MAX_AGE }
     val heightValue = height.toIntOrNull()?.takeIf { it in 100..250 }
     val weightValue = weight.replace(',', '.').toDoubleOrNull()?.takeIf { it in 30.0..300.0 }
     val valid = name.isNotBlank() && ageValue != null && heightValue != null && weightValue != null
+    val underweight = heightValue != null && weightValue != null &&
+        Safety.bmi(weightValue, heightValue) < Safety.UNDERWEIGHT_BMI
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         OutlinedTextField(name, { name = it }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
@@ -126,6 +131,13 @@ private fun ProfileForm(initial: UserProfile?, saveLabel: String, onSave: (UserP
             NumberField(age, { age = it }, "Age", Modifier.weight(1f), error = age.isNotEmpty() && ageValue == null)
             NumberField(height, { height = it }, "Height (cm)", Modifier.weight(1f), error = height.isNotEmpty() && heightValue == null)
             NumberField(weight, { weight = it }, "Weight (kg)", Modifier.weight(1f), decimal = true, error = weight.isNotEmpty() && weightValue == null)
+        }
+        if (ageNumber != null && ageNumber < Safety.MIN_AGE) {
+            Text(
+                "FitHall is for adults aged ${Safety.MIN_AGE} and over. Its calorie targets and AI coaching aren't designed for younger people.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
         }
 
         Section("Sex (for calorie calculation)")
@@ -135,7 +147,22 @@ private fun ProfileForm(initial: UserProfile?, saveLabel: String, onSave: (UserP
 
         Section("Main goal")
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Goal.entries.forEach { FilterChip(goal == it, { goal = it }, label = { Text(it.label) }) }
+            Goal.entries.forEach {
+                FilterChip(
+                    selected = goal == it,
+                    onClick = { goal = it },
+                    enabled = !(it == Goal.LOSE_FAT && underweight),
+                    label = { Text(it.label) },
+                )
+            }
+        }
+        if (underweight) {
+            Text(
+                "Your BMI is below ${Safety.UNDERWEIGHT_BMI}, so FitHall won't set a calorie deficit." +
+                    if (goal == Goal.LOSE_FAT) " Your targets will be set to maintain your weight." else "",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
 
         Section("Daily activity level")
@@ -225,4 +252,20 @@ private fun NumberField(
         keyboardOptions = KeyboardOptions(keyboardType = if (decimal) KeyboardType.Decimal else KeyboardType.Number),
         modifier = modifier,
     )
+}
+
+/** Explains when the safety rules changed what the user asked for. */
+@Composable
+fun SafetyNotice(text: String) {
+    androidx.compose.material3.Card(
+        colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Text(
+            text,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onErrorContainer,
+            modifier = Modifier.padding(12.dp),
+        )
+    }
 }

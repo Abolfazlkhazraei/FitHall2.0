@@ -5,6 +5,7 @@ import com.fithall.app.api.ErrorCodes
 import com.fithall.app.model.ChatMessage
 import com.fithall.app.model.ChatRole
 import com.fithall.app.model.MacroTargets
+import com.fithall.app.model.Safety
 import com.fithall.app.model.UserProfile
 import io.ktor.http.HttpStatusCode
 import java.util.Base64
@@ -40,7 +41,7 @@ object Validation {
         maxLength(p.name, 100, "name")
         maxLength(p.dietaryNotes, 500, "dietaryNotes")
         maxLength(p.injuries, 500, "injuries")
-        if (p.age !in 13..100) invalid("age is out of range.")
+        if (p.age !in Safety.MIN_AGE..Safety.MAX_AGE) invalid("FitHall is for adults aged ${Safety.MIN_AGE} and over.")
         if (p.heightCm !in 100..250) invalid("heightCm is out of range.")
         if (p.weightKg !in 30.0..300.0) invalid("weightKg is out of range.")
         if (p.trainingDaysPerWeek !in 1..7) invalid("trainingDaysPerWeek is out of range.")

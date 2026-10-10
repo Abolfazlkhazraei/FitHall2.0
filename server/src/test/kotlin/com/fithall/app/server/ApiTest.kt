@@ -133,6 +133,9 @@ class ApiTest {
         assertEquals(HttpStatusCode.BadRequest, client.postJson(Api.MEAL_PHOTO, token, MealPhotoRequest(notJpeg)).status)
         assertEquals(HttpStatusCode.BadRequest, client.postJson(Api.MEAL_TEXT, token, MealTextRequest("  ")).status)
         assertEquals(HttpStatusCode.BadRequest, client.postJson(Api.WORKOUT_PLAN, token, WorkoutPlanRequest(profile.copy(age = 5))).status)
+        val minor = client.postJson(Api.WORKOUT_PLAN, token, WorkoutPlanRequest(profile.copy(age = 17)))
+        assertEquals(HttpStatusCode.BadRequest, minor.status)
+        assertEquals("FitHall is for adults aged 18 and over.", minor.body<ApiError>().message)
         val endsWithAssistant = CoachRequest("", listOf(ChatMessage(ChatRole.USER, "hi"), ChatMessage(ChatRole.ASSISTANT, "yo")))
         assertEquals(HttpStatusCode.BadRequest, client.postJson(Api.COACH_REPLY, token, endsWithAssistant).status)
         val malformed = client.post(Api.MEAL_TEXT) {
