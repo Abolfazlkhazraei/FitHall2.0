@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Match the Compose theme (ui/Theme.kt) so there's no flash of a different colour at launch. -->
+    <color name="fithall_green">#1E8E5A</color>
+    <color name="window_background">#F6FBF4</color>
+</resources>

@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.fithall.app.ai.AiService
 import com.fithall.app.ai.BackendAiService
 import com.fithall.app.ai.PlayIntegrityAttestation
@@ -21,6 +22,7 @@ import com.fithall.app.platform.clearAppCaches
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 

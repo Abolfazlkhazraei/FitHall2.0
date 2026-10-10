@@ -26,6 +26,7 @@ googleAuth = "1.54.0"
 sqldelight = "2.3.2"
 work = "2.11.2"
 firebaseBom = "34.19.0"
+splashscreen = "1.0.1"
 googleServices = "4.4.4"
 crashlyticsPlugin = "3.0.7"
 playServicesCodeScanner = "16.1.0"
@@ -79,6 +80,7 @@ sqldelight-sqliteDriver = { module = "app.cash.sqldelight:sqlite-driver", versio
 androidx-workRuntime = { module = "androidx.work:work-runtime-ktx", version.ref = "work" }
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebaseBom" }
 firebase-crashlytics = { module = "com.google.firebase:firebase-crashlytics" }
+androidx-splashscreen = { module = "androidx.core:core-splashscreen", version.ref = "splashscreen" }
 logback = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
 
 [plugins]

@@ -170,6 +170,18 @@ The `.aab` is in `composeApp/build/outputs/bundle/release/`. Increase `VERSION_C
 upload. Shrinking can break code that relies on reflection, so test the release build itself
 (an internal testing track is the easiest way) before promoting it.
 
+## Branding (placeholder)
+
+The launcher icon (an adaptive icon with a themed-icon layer), splash screen, colours and the Play
+Store artwork are placeholders: a white dumbbell on FitHall green (`#1E8E5A`). Colours live in
+`composeApp/.../ui/Theme.kt` (light and dark schemes, all text pairs WCAG AA) and
+`res/values*/colors.xml` for the window background.
+
+`docs/store/make_icons.py` generates the icon vectors and `docs/store/play-icon-512.png` /
+`feature-graphic-1024x500.png` from one set of shapes. To rebrand, replace the shapes and colours
+there (or drop in your own vector drawables) and update `Theme.kt`. You still need phone
+screenshots for the store listing.
+
 ## Storage
 
 Meals, workouts, weigh-ins, check-ins and coach chat are stored in SQLite (`fithall.db`) through

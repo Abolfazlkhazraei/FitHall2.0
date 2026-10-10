@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The app draws everything with Compose; this only sets what shows before the first frame. -->
+    <style name="Theme.FitHall" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/window_background</item>
+    </style>
+
+    <!-- Splash screen on every supported Android version (androidx.core:core-splashscreen). -->
+    <style name="Theme.FitHall.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/fithall_green</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="postSplashScreenTheme">@style/Theme.FitHall</item>
+    </style>
+</resources>

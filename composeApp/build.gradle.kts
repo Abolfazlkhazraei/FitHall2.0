@@ -82,6 +82,7 @@ kotlin {
             implementation(libs.ktor.clientOkhttp)
             implementation(libs.sqldelight.androidDriver)
             implementation(libs.androidx.workRuntime)
+            implementation(libs.androidx.splashscreen)
             implementation(project.dependencies.platform(libs.firebase.bom))
             implementation(libs.firebase.crashlytics)
             implementation(libs.playServices.codeScanner)
