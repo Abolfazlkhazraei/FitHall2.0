@@ -121,7 +121,7 @@ class SqlHistoryStore(driver: SqlDriver) : HistoryStore {
 class InMemoryHistoryStore : HistoryStore {
     private val meals = LinkedHashMap<String, MealEntry>()
     private val workouts = LinkedHashMap<String, WorkoutLog>()
-    private val weights = sortedMapOf<String, Double>()
+    private val weights = mutableMapOf<String, Double>() // sortedMapOf is JVM-only
     private val checkIns = LinkedHashMap<String, WeeklyCheckIn>()
     private val chat = mutableListOf<ChatMessage>()
 
@@ -134,7 +134,7 @@ class InMemoryHistoryStore : HistoryStore {
     override fun saveWorkout(log: WorkoutLog) { workouts[log.id] = log }
     override fun deleteWorkout(id: String) { workouts.remove(id) }
 
-    override fun weights() = weights.map { (day, kg) -> WeightEntry(day, kg) }
+    override fun weights() = weights.entries.sortedBy { it.key }.map { WeightEntry(it.key, it.value) }
     override fun saveWeight(entry: WeightEntry) { weights[entry.dayKey] = entry.weightKg }
     override fun deleteWeight(dayKey: String) { weights.remove(dayKey) }
 
