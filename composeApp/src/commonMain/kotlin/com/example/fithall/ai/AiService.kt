@@ -14,7 +14,8 @@ import com.example.fithall.model.WorkoutPlan
 interface AiService {
     suspend fun analyzeMeal(jpegBytes: ByteArray, userNote: String): MealAnalysis
 
-    suspend fun generateWorkoutPlan(profile: UserProfile): WorkoutPlan
+    /** [recentTraining] is a text summary of logged sessions; empty for a new user. */
+    suspend fun generateWorkoutPlan(profile: UserProfile, recentTraining: String): WorkoutPlan
 
     suspend fun generateNutritionPlan(profile: UserProfile, targets: MacroTargets): NutritionPlan
 
@@ -27,7 +28,7 @@ class AiException(message: String, cause: Throwable? = null) : Exception(message
 /** Used on platforms that don't have an AI client wired up yet. */
 class UnavailableAiService(private val reason: String) : AiService {
     override suspend fun analyzeMeal(jpegBytes: ByteArray, userNote: String) = throw AiException(reason)
-    override suspend fun generateWorkoutPlan(profile: UserProfile) = throw AiException(reason)
+    override suspend fun generateWorkoutPlan(profile: UserProfile, recentTraining: String) = throw AiException(reason)
     override suspend fun generateNutritionPlan(profile: UserProfile, targets: MacroTargets) =
         throw AiException(reason)
     override suspend fun coachReply(context: String, history: List<ChatMessage>) = throw AiException(reason)

@@ -4,6 +4,8 @@ import com.example.fithall.model.ChatMessage
 import com.example.fithall.model.MealEntry
 import com.example.fithall.model.NutritionPlan
 import com.example.fithall.model.UserProfile
+import com.example.fithall.model.WeightEntry
+import com.example.fithall.model.WorkoutLog
 import com.example.fithall.model.WorkoutPlan
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.ListSerializer
@@ -48,6 +50,19 @@ class AppRepository(private val store: KeyValueStore) {
         get() = read(KEY_CHAT, ListSerializer(ChatMessage.serializer())) ?: emptyList()
         set(value) = write(KEY_CHAT, ListSerializer(ChatMessage.serializer()), value)
 
+    var workoutLogs: List<WorkoutLog>
+        get() = read(KEY_WORKOUT_LOGS, ListSerializer(WorkoutLog.serializer())) ?: emptyList()
+        set(value) = write(KEY_WORKOUT_LOGS, ListSerializer(WorkoutLog.serializer()), value)
+
+    /** The session in progress, saved so it survives the app being closed mid-workout. */
+    var activeWorkout: WorkoutLog?
+        get() = read(KEY_ACTIVE_WORKOUT, WorkoutLog.serializer())
+        set(value) = write(KEY_ACTIVE_WORKOUT, WorkoutLog.serializer(), value)
+
+    var weights: List<WeightEntry>
+        get() = read(KEY_WEIGHTS, ListSerializer(WeightEntry.serializer())) ?: emptyList()
+        set(value) = write(KEY_WEIGHTS, ListSerializer(WeightEntry.serializer()), value)
+
     private fun <T> read(key: String, serializer: KSerializer<T>): T? =
         store.get(key)?.let { raw -> runCatching { json.decodeFromString(serializer, raw) }.getOrNull() }
 
@@ -60,5 +75,8 @@ class AppRepository(private val store: KeyValueStore) {
         const val KEY_WORKOUT = "workout_plan"
         const val KEY_NUTRITION = "nutrition_plan"
         const val KEY_CHAT = "coach_chat"
+        const val KEY_WORKOUT_LOGS = "workout_logs"
+        const val KEY_ACTIVE_WORKOUT = "active_workout"
+        const val KEY_WEIGHTS = "body_weights"
     }
 }

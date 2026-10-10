@@ -1,8 +1,9 @@
 # FitHall
 
 An AI fitness app: snap a photo of your plate to count its macros, get a workout plan and a meal
-plan generated for your level, activity and goal, and chat with an AI coach that knows your
-profile, today's meals and your plans. AI is powered by Claude (`claude-opus-5-5`).
+plan generated for your level, activity and goal, log your sessions set by set, track body
+weight and strength progress, and chat with an AI coach that knows your profile, today's meals,
+your plans and your recent training. AI is powered by Claude (`claude-opus-5-5`).
 
 ## Setup
 
@@ -24,11 +25,12 @@ profile, today's meals and your plans. AI is powered by Claude (`claude-opus-5-5
 |---|---|
 | Data models | `commonMain/.../model/Models.kt` |
 | Calorie & macro targets (Mifflin-St Jeor, deterministic) | `commonMain/.../domain/MacroCalculator.kt` |
+| Workout stats, streaks, estimated 1RM, set prefill | `commonMain/.../domain/ProgressCalculator.kt` |
 | AI interface, prompts, JSON schemas | `commonMain/.../ai/` |
 | Claude implementation (Android) | `androidMain/.../ai/ClaudeAiService.kt` |
 | On-device storage (SharedPreferences, JSON) | `commonMain/.../data/AppRepository.kt` |
 | Camera / gallery capture | `androidMain/.../platform/Platform.android.kt` |
-| Screens (Nutrition, Workouts, Coach, Profile) | `commonMain/.../ui/` |
+| Screens (Nutrition, Workouts + live session, Progress, Coach, Profile) | `commonMain/.../ui/` |
 
 Android is the only fully supported target for now. iOS and Desktop compile, but they use
 in-memory storage and have no camera or AI.

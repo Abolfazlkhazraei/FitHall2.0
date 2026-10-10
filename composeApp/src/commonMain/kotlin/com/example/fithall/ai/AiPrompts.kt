@@ -27,9 +27,15 @@ Choose exercises that are possible with the stated equipment only, and work arou
 Every session must fit the stated session length, including the warm-up.
 Write the progression field as concrete week-by-week guidance (for example how to add weight or reps), and keep notes short and practical."""
 
-    fun workoutUserText(profile: UserProfile): String = """Create my training plan.
-
-${profileSummary(profile)}"""
+    fun workoutUserText(profile: UserProfile, recentTraining: String): String = buildString {
+        append("Create my training plan.\n\n")
+        append(profileSummary(profile))
+        if (recentTraining.isNotBlank()) {
+            append("\n\nMy recent logged sessions (weight x reps of completed sets). ")
+            append("Use them to pick realistic starting loads and to progress from where I am:\n")
+            append(recentTraining)
+        }
+    }
 
     const val NUTRITION_SYSTEM = """You are a registered dietitian creating a practical one-day meal plan.
 The plan must hit the provided daily calorie and macro targets as closely as possible (within about 5%), split across sensible meals and snacks.

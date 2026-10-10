@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material3.Icon
@@ -32,11 +33,13 @@ import com.example.fithall.ui.FitHallTheme
 import com.example.fithall.ui.NutritionScreen
 import com.example.fithall.ui.OnboardingScreen
 import com.example.fithall.ui.ProfileScreen
+import com.example.fithall.ui.ProgressScreen
 import com.example.fithall.ui.WorkoutScreen
 
 private enum class Tab(val label: String, val icon: ImageVector) {
     NUTRITION("Nutrition", Icons.Filled.Restaurant),
     WORKOUTS("Workouts", Icons.Filled.FitnessCenter),
+    PROGRESS("Progress", Icons.Filled.Insights),
     COACH("Coach", Icons.AutoMirrored.Filled.Chat),
     PROFILE("Profile", Icons.Filled.Person),
 }
@@ -81,6 +84,7 @@ fun App(repository: AppRepository, ai: AiService) {
                 when (tab) {
                     Tab.NUTRITION -> NutritionScreen(state, viewModel)
                     Tab.WORKOUTS -> WorkoutScreen(state, viewModel)
+                    Tab.PROGRESS -> ProgressScreen(state, viewModel)
                     Tab.COACH -> CoachScreen(state, viewModel)
                     Tab.PROFILE -> ProfileScreen(profile, viewModel)
                 }

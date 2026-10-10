@@ -56,6 +56,7 @@ kotlin {
             implementation(libs.compose.materialIconsExtended)
             implementation(libs.kotlinx.coroutinesCore)
             implementation(libs.kotlinx.serializationJson)
+            implementation(libs.kotlinx.datetime)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

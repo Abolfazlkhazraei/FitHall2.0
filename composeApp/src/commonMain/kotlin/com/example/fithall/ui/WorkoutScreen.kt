@@ -17,7 +17,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -40,6 +42,10 @@ import com.example.fithall.model.WorkoutDay
 fun WorkoutScreen(state: AppState, viewModel: AppViewModel) {
     val plan = state.workoutPlan
     val profile = state.profile ?: return
+    state.activeWorkout?.let { session ->
+        ActiveWorkoutScreen(session, state.workoutLogs, viewModel)
+        return
+    }
 
     LazyColumn(
         Modifier.fillMaxSize(),
@@ -83,7 +89,16 @@ fun WorkoutScreen(state: AppState, viewModel: AppViewModel) {
                         }
                     }
                 }
-                itemsIndexed(plan.days) { index, day -> WorkoutDayCard(day, initiallyExpanded = index == 0) }
+                itemsIndexed(plan.days) { index, day ->
+                    WorkoutDayCard(day, initiallyExpanded = index == 0, onStart = { viewModel.startWorkout(day) })
+                }
+                item {
+                    OutlinedButton(onClick = viewModel::startEmptyWorkout, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Filled.PlayArrow, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Log a custom workout")
+                    }
+                }
                 item { InfoCard("How to progress", plan.progression) }
                 if (plan.safetyNotes.isNotBlank()) item { InfoCard("Safety", plan.safetyNotes) }
                 item {
@@ -106,7 +121,7 @@ fun WorkoutScreen(state: AppState, viewModel: AppViewModel) {
 }
 
 @Composable
-private fun WorkoutDayCard(day: WorkoutDay, initiallyExpanded: Boolean) {
+private fun WorkoutDayCard(day: WorkoutDay, initiallyExpanded: Boolean, onStart: () -> Unit) {
     var expanded by rememberSaveable(day.dayName) { mutableStateOf(initiallyExpanded) }
     Card(Modifier.fillMaxWidth().animateContentSize()) {
         Column(Modifier.clickable { expanded = !expanded }.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -132,6 +147,11 @@ private fun WorkoutDayCard(day: WorkoutDay, initiallyExpanded: Boolean) {
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                }
+                FilledTonalButton(onClick = onStart, modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
+                    Icon(Icons.Filled.PlayArrow, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Start this workout")
                 }
             }
         }

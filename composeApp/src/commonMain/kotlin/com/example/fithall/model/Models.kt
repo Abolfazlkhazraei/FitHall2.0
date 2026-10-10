@@ -155,6 +155,51 @@ data class WorkoutPlan(
     val safetyNotes: String,
 )
 
+// ---- Workout logging & progress ----
+
+@Serializable
+data class SetLog(
+    /** Null for bodyweight or timed exercises. */
+    val weightKg: Double? = null,
+    val reps: Int = 0,
+    val completed: Boolean = false,
+)
+
+@Serializable
+data class ExerciseLog(
+    val name: String,
+    /** What the plan asked for, e.g. "3 × 8-10"; empty for exercises added during the session. */
+    val target: String = "",
+    val restSeconds: Int = 0,
+    val sets: List<SetLog>,
+)
+
+@Serializable
+data class WorkoutLog(
+    val id: String,
+    val dayKey: String,
+    val startedAtMillis: Long,
+    val finishedAtMillis: Long? = null,
+    val title: String,
+    val exercises: List<ExerciseLog>,
+    val notes: String = "",
+) {
+    val completedSets: Int get() = exercises.sumOf { ex -> ex.sets.count { it.completed } }
+
+    /** Total kg lifted across completed sets. */
+    val volumeKg: Double
+        get() = exercises.sumOf { ex -> ex.sets.filter { it.completed }.sumOf { (it.weightKg ?: 0.0) * it.reps } }
+
+    val durationMinutes: Int?
+        get() = finishedAtMillis?.let { ((it - startedAtMillis) / 60_000).toInt() }
+}
+
+@Serializable
+data class WeightEntry(
+    val dayKey: String,
+    val weightKg: Double,
+)
+
 // ---- Coach chat ----
 
 @Serializable

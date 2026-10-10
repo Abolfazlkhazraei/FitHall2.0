@@ -69,10 +69,10 @@ class ClaudeAiService(apiKey: String) : AiService {
         return decode(send(params), MealAnalysis.serializer())
     }
 
-    override suspend fun generateWorkoutPlan(profile: UserProfile): WorkoutPlan {
+    override suspend fun generateWorkoutPlan(profile: UserProfile, recentTraining: String): WorkoutPlan {
         val params = baseParams(AiPrompts.WORKOUT_SYSTEM)
             .outputConfig(structured(AiPrompts.WORKOUT_SCHEMA, OutputConfig.Effort.HIGH))
-            .addUserMessage(AiPrompts.workoutUserText(profile))
+            .addUserMessage(AiPrompts.workoutUserText(profile, recentTraining))
             .build()
         return decode(send(params), WorkoutPlan.serializer())
     }
