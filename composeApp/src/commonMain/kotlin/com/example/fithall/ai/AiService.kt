@@ -1,6 +1,7 @@
 package com.example.fithall.ai
 
 import com.example.fithall.model.ChatMessage
+import com.example.fithall.model.CheckInResult
 import com.example.fithall.model.MacroTargets
 import com.example.fithall.model.MealAnalysis
 import com.example.fithall.model.NutritionPlan
@@ -21,6 +22,9 @@ interface AiService {
 
     /** [context] is a plain-text snapshot of the user's profile, targets, intake and plans. */
     suspend fun coachReply(context: String, history: List<ChatMessage>): String
+
+    /** [report] is the factual weekly summary built by CheckInCalculator.buildReport. */
+    suspend fun weeklyCheckIn(report: String): CheckInResult
 }
 
 class AiException(message: String, cause: Throwable? = null) : Exception(message, cause)
@@ -32,4 +36,5 @@ class UnavailableAiService(private val reason: String) : AiService {
     override suspend fun generateNutritionPlan(profile: UserProfile, targets: MacroTargets) =
         throw AiException(reason)
     override suspend fun coachReply(context: String, history: List<ChatMessage>) = throw AiException(reason)
+    override suspend fun weeklyCheckIn(report: String) = throw AiException(reason)
 }

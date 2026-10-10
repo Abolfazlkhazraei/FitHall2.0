@@ -19,6 +19,7 @@ import com.anthropic.models.messages.OutputConfig
 import com.anthropic.models.messages.StopReason
 import com.example.fithall.model.ChatMessage
 import com.example.fithall.model.ChatRole
+import com.example.fithall.model.CheckInResult
 import com.example.fithall.model.MacroTargets
 import com.example.fithall.model.MealAnalysis
 import com.example.fithall.model.NutritionPlan
@@ -96,6 +97,14 @@ class ClaudeAiService(apiKey: String) : AiService {
             }
         }
         return send(builder.build())
+    }
+
+    override suspend fun weeklyCheckIn(report: String): CheckInResult {
+        val params = baseParams(AiPrompts.CHECK_IN_SYSTEM)
+            .outputConfig(structured(AiPrompts.CHECK_IN_SCHEMA, OutputConfig.Effort.HIGH))
+            .addUserMessage(AiPrompts.checkInUserText(report))
+            .build()
+        return decode(send(params), CheckInResult.serializer())
     }
 
     private fun baseParams(system: String): MessageCreateParams.Builder =

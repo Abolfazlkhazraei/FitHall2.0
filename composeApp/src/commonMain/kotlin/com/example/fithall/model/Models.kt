@@ -200,6 +200,61 @@ data class WeightEntry(
     val weightKg: Double,
 )
 
+// ---- Weekly check-in ----
+
+/** Swap or re-prescribe one exercise in the current plan. */
+@Serializable
+data class TrainingChange(
+    val dayName: String,
+    val currentExercise: String,
+    /** Same as [currentExercise] when only sets, reps or rest change. */
+    val newExercise: String,
+    val sets: Int,
+    val reps: String,
+    val restSeconds: Int,
+    val reason: String,
+)
+
+/** What the AI returns for a check-in. Mirrors AiPrompts.CHECK_IN_SCHEMA. */
+@Serializable
+data class CheckInResult(
+    val headline: String,
+    val summary: String,
+    val wins: List<String>,
+    val concerns: List<String>,
+    /** Change to daily calories, kcal. 0 = keep. */
+    val calorieChange: Int,
+    /** Change to daily protein, g. 0 = keep. */
+    val proteinChange: Int,
+    val nutritionReason: String,
+    val trainingChanges: List<TrainingChange>,
+    val focusForNextWeek: List<String>,
+)
+
+@Serializable
+enum class CheckInStatus { PENDING, APPLIED, DISMISSED }
+
+@Serializable
+data class WeeklyCheckIn(
+    val id: String,
+    val dayKey: String,
+    val createdAtMillis: Long,
+    val result: CheckInResult,
+    val status: CheckInStatus = CheckInStatus.PENDING,
+    val appliedCalorieChange: Int = 0,
+    val appliedProteinChange: Int = 0,
+    val appliedTrainingChanges: Int = 0,
+)
+
+/** Accumulated check-in changes layered on top of the calculated targets. */
+@Serializable
+data class TargetAdjustment(
+    val calories: Int = 0,
+    val proteinG: Int = 0,
+) {
+    val isZero: Boolean get() = calories == 0 && proteinG == 0
+}
+
 // ---- Coach chat ----
 
 @Serializable

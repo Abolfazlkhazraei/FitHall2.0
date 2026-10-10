@@ -3,7 +3,9 @@ package com.example.fithall.data
 import com.example.fithall.model.ChatMessage
 import com.example.fithall.model.MealEntry
 import com.example.fithall.model.NutritionPlan
+import com.example.fithall.model.TargetAdjustment
 import com.example.fithall.model.UserProfile
+import com.example.fithall.model.WeeklyCheckIn
 import com.example.fithall.model.WeightEntry
 import com.example.fithall.model.WorkoutLog
 import com.example.fithall.model.WorkoutPlan
@@ -63,6 +65,14 @@ class AppRepository(private val store: KeyValueStore) {
         get() = read(KEY_WEIGHTS, ListSerializer(WeightEntry.serializer())) ?: emptyList()
         set(value) = write(KEY_WEIGHTS, ListSerializer(WeightEntry.serializer()), value)
 
+    var checkIns: List<WeeklyCheckIn>
+        get() = read(KEY_CHECK_INS, ListSerializer(WeeklyCheckIn.serializer())) ?: emptyList()
+        set(value) = write(KEY_CHECK_INS, ListSerializer(WeeklyCheckIn.serializer()), value)
+
+    var targetAdjustment: TargetAdjustment
+        get() = read(KEY_TARGET_ADJUSTMENT, TargetAdjustment.serializer()) ?: TargetAdjustment()
+        set(value) = write(KEY_TARGET_ADJUSTMENT, TargetAdjustment.serializer(), value)
+
     private fun <T> read(key: String, serializer: KSerializer<T>): T? =
         store.get(key)?.let { raw -> runCatching { json.decodeFromString(serializer, raw) }.getOrNull() }
 
@@ -78,5 +88,7 @@ class AppRepository(private val store: KeyValueStore) {
         const val KEY_WORKOUT_LOGS = "workout_logs"
         const val KEY_ACTIVE_WORKOUT = "active_workout"
         const val KEY_WEIGHTS = "body_weights"
+        const val KEY_CHECK_INS = "check_ins"
+        const val KEY_TARGET_ADJUSTMENT = "target_adjustment"
     }
 }

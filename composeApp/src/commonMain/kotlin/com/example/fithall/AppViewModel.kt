@@ -6,17 +6,21 @@ import com.example.fithall.ai.AiException
 import com.example.fithall.ai.AiPrompts
 import com.example.fithall.ai.AiService
 import com.example.fithall.data.AppRepository
+import com.example.fithall.domain.CheckInCalculator
 import com.example.fithall.domain.MacroCalculator
 import com.example.fithall.domain.ProgressCalculator
 import com.example.fithall.model.ChatMessage
 import com.example.fithall.model.ChatRole
+import com.example.fithall.model.CheckInStatus
 import com.example.fithall.model.ExerciseLog
 import com.example.fithall.model.MacroTargets
 import com.example.fithall.model.MealAnalysis
 import com.example.fithall.model.MealEntry
 import com.example.fithall.model.NutritionPlan
 import com.example.fithall.model.SetLog
+import com.example.fithall.model.TargetAdjustment
 import com.example.fithall.model.UserProfile
+import com.example.fithall.model.WeeklyCheckIn
 import com.example.fithall.model.WeightEntry
 import com.example.fithall.model.WorkoutDay
 import com.example.fithall.model.WorkoutLog
@@ -47,14 +51,20 @@ data class AppState(
     val workoutLogs: List<WorkoutLog> = emptyList(),
     val activeWorkout: WorkoutLog? = null,
     val weights: List<WeightEntry> = emptyList(),
+    val checkIns: List<WeeklyCheckIn> = emptyList(),
+    val adjustment: TargetAdjustment = TargetAdjustment(),
     val today: String = todayKey(),
     val scan: ScanState = ScanState.Idle,
     val generatingWorkout: Boolean = false,
     val generatingNutrition: Boolean = false,
     val coachTyping: Boolean = false,
+    val runningCheckIn: Boolean = false,
     val error: String? = null,
 ) {
-    val targets: MacroTargets? get() = profile?.let(MacroCalculator::targets)
+    val targets: MacroTargets? get() = profile?.let { MacroCalculator.targets(it, adjustment) }
+    val pendingCheckIn: WeeklyCheckIn? get() = checkIns.lastOrNull { it.status == CheckInStatus.PENDING }
+    val checkInDue: Boolean
+        get() = pendingCheckIn == null && CheckInCalculator.isDue(checkIns, today, workoutLogs, weights, meals)
     val todaysMeals: List<MealEntry> get() = meals.filter { it.dayKey == today }
     val todaysTotals: MacroTargets
         get() = todaysMeals.fold(MacroTargets.ZERO) { acc, meal -> acc + meal.analysis.totals }
@@ -75,6 +85,8 @@ class AppViewModel(
             workoutLogs = repository.workoutLogs,
             activeWorkout = repository.activeWorkout,
             weights = repository.weights,
+            checkIns = repository.checkIns,
+            adjustment = repository.targetAdjustment,
         )
     )
     val state: StateFlow<AppState> = _state.asStateFlow()
@@ -280,6 +292,99 @@ class AppViewModel(
         _state.update { it.copy(weights = weights) }
     }
 
+    // ---- Weekly check-in ----
+
+    fun runCheckIn() {
+        val s = _state.value
+        val profile = s.profile ?: return
+        val targets = s.targets ?: return
+        if (s.runningCheckIn) return
+        _state.update { it.copy(runningCheckIn = true) }
+        val today = todayKey()
+        val report = CheckInCalculator.buildReport(
+            profile = profile,
+            targets = targets,
+            adjustment = s.adjustment,
+            meals = s.meals,
+            logs = s.workoutLogs,
+            weights = s.weights,
+            plan = s.workoutPlan,
+            previous = s.checkIns.maxByOrNull { it.createdAtMillis },
+            today = today,
+        )
+        viewModelScope.launch {
+            runAi { ai.weeklyCheckIn(report) }
+                .onSuccess { result ->
+                    // A newer check-in replaces any earlier one that was never acted on.
+                    val earlier = _state.value.checkIns.map {
+                        if (it.status == CheckInStatus.PENDING) it.copy(status = CheckInStatus.DISMISSED) else it
+                    }
+                    val checkIns = earlier + WeeklyCheckIn(newId(), today, nowMillis(), result)
+                    repository.checkIns = checkIns
+                    _state.update { it.copy(checkIns = checkIns) }
+                }
+                .onFailure { e -> _state.update { it.copy(error = e.userMessage()) } }
+            _state.update { it.copy(runningCheckIn = false) }
+        }
+    }
+
+    /**
+     * Applies the parts of a check-in the user accepted. Nutrition changes are bounded by
+     * CheckInCalculator; training changes are matched against the current plan by name.
+     */
+    fun applyCheckIn(id: String, applyNutrition: Boolean, trainingChangeIndexes: Set<Int>) {
+        val s = _state.value
+        val checkIn = s.checkIns.firstOrNull { it.id == id && it.status == CheckInStatus.PENDING } ?: return
+        val result = checkIn.result
+
+        val adjustment = if (applyNutrition) {
+            CheckInCalculator.boundedAdjustment(s.adjustment, result.calorieChange, result.proteinChange)
+        } else {
+            s.adjustment
+        }
+        val selected = result.trainingChanges.filterIndexed { i, _ -> i in trainingChangeIndexes }
+        val (plan, appliedTraining) = s.workoutPlan
+            ?.let { CheckInCalculator.applyTrainingChanges(it, selected) }
+            ?: (null to 0)
+
+        val updated = checkIn.copy(
+            status = CheckInStatus.APPLIED,
+            appliedCalorieChange = adjustment.calories - s.adjustment.calories,
+            appliedProteinChange = adjustment.proteinG - s.adjustment.proteinG,
+            appliedTrainingChanges = appliedTraining,
+        )
+        val checkIns = s.checkIns.map { if (it.id == id) updated else it }
+
+        repository.checkIns = checkIns
+        repository.targetAdjustment = adjustment
+        if (plan != null && appliedTraining > 0) repository.workoutPlan = plan
+        _state.update {
+            it.copy(
+                checkIns = checkIns,
+                adjustment = adjustment,
+                workoutPlan = if (plan != null && appliedTraining > 0) plan else it.workoutPlan,
+            )
+        }
+        if (appliedTraining < selected.size) {
+            _state.update { it.copy(error = "${selected.size - appliedTraining} exercise change(s) no longer matched your plan and were skipped.") }
+        }
+        // The meal plan was built for the old targets.
+        if (adjustment != s.adjustment && s.nutritionPlan != null) generateNutritionPlan()
+    }
+
+    fun dismissCheckIn(id: String) {
+        val checkIns = _state.value.checkIns.map {
+            if (it.id == id && it.status == CheckInStatus.PENDING) it.copy(status = CheckInStatus.DISMISSED) else it
+        }
+        repository.checkIns = checkIns
+        _state.update { it.copy(checkIns = checkIns) }
+    }
+
+    fun resetAdjustment() {
+        repository.targetAdjustment = TargetAdjustment()
+        _state.update { it.copy(adjustment = TargetAdjustment()) }
+    }
+
     // ---- Coach ----
 
     fun sendCoachMessage(text: String) {
@@ -325,6 +430,10 @@ class AppViewModel(
         if (s.workoutLogs.isNotEmpty()) {
             appendLine("Recent workouts (completed sets):")
             appendLine(ProgressCalculator.historySummary(s.workoutLogs))
+        }
+        s.checkIns.lastOrNull { it.status == CheckInStatus.APPLIED }?.let { c ->
+            appendLine("Latest weekly check-in (${c.dayKey}): ${c.result.headline} ${c.result.summary}")
+            if (c.result.focusForNextWeek.isNotEmpty()) appendLine("Focus this week: " + c.result.focusForNextWeek.joinToString("; "))
         }
         if (s.weights.size >= 2) {
             val first = s.weights.first()

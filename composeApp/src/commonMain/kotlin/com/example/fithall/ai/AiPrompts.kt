@@ -53,6 +53,29 @@ You help the user reach their goal: answer questions about training and food, su
 Base your advice on the user context below. Be concise: this is a phone chat, so prefer a few short paragraphs or a short list over long essays.
 You give general fitness guidance, not medical advice: for pain, injuries, medical conditions, eating disorders or medication questions, recommend seeing a qualified professional."""
 
+    const val CHECK_IN_SYSTEM = """You are the user's fitness and nutrition coach doing their weekly check-in.
+You receive a factual report computed by the app from what the user logged. Rely on its numbers; do not invent data that isn't there.
+
+Judge progress against the user's goal:
+- Lose fat: aim for a loss of about 0.5-1% of body weight per week. Faster than that risks muscle loss and fatigue, so suggest eating a little more; slower for 2+ weeks, suggest eating a little less.
+- Build muscle: aim for a gain of about 0.25-0.5% per week, a bit less for advanced lifters. No gain for 2+ weeks, suggest eating a little more; much faster, suggest a little less.
+- Get stronger: keep weight roughly stable or slowly rising; the priority is lifts going up.
+- Endurance or maintain: keep weight within about 0.25% per week of stable.
+
+Nutrition changes:
+- Change calories in steps of 100-250 kcal, and only when the trend is clear. Use 0 when the data is too thin (fewer than 2 weigh-ins spread over at least 5 days, or most days unlogged), when the user is on track, or when the last check-in already changed calories and there hasn't been time to see its effect.
+- Change protein only if intake is clearly short of target or the target is clearly wrong for the goal; otherwise use 0.
+- Never take calories below the minimum allowed intake stated in the report.
+
+Training changes:
+- Only propose changes when there's a reason: a STALLED lift (for example change the rep range, sets, or swap to a close variation), consistently missed sessions, or very easy progress.
+- Each change must name a day and an exercise exactly as written in the current plan. Use the same exercise name in newExercise if you only change sets, reps or rest.
+- Propose at most 4 changes, and none if the plan is working or there is too little training data.
+
+Write for the user in second person: warm, specific and brief. Wins and concerns should reference their actual numbers. If data is missing, say what to log this week so the next check-in can be more precise. This is general fitness guidance, not medical advice."""
+
+    fun checkInUserText(report: String): String = "Here is my report for this week's check-in.\n\n$report"
+
     fun profileSummary(p: UserProfile): String = buildString {
         appendLine("Name: ${p.name}")
         appendLine("Age: ${p.age}, sex: ${p.sex.label}")
@@ -136,6 +159,41 @@ You give general fitness guidance, not medical advice: for pain, injuries, medic
         "safetyNotes": {"type": "string"}
       },
       "required": ["title", "summary", "durationWeeks", "days", "progression", "safetyNotes"],
+      "additionalProperties": false
+    }
+    """.trimIndent()
+
+    val CHECK_IN_SCHEMA = """
+    {
+      "type": "object",
+      "properties": {
+        "headline": {"type": "string", "description": "One short sentence, e.g. 'Right on track: keep going'"},
+        "summary": {"type": "string", "description": "2-4 sentences on how the week went"},
+        "wins": {"type": "array", "items": {"type": "string"}},
+        "concerns": {"type": "array", "items": {"type": "string"}},
+        "calorieChange": {"type": "integer", "description": "Change to daily calories in kcal; 0 to keep"},
+        "proteinChange": {"type": "integer", "description": "Change to daily protein in grams; 0 to keep"},
+        "nutritionReason": {"type": "string", "description": "Why the nutrition changes (or why none)"},
+        "trainingChanges": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "dayName": {"type": "string"},
+              "currentExercise": {"type": "string"},
+              "newExercise": {"type": "string"},
+              "sets": {"type": "integer"},
+              "reps": {"type": "string"},
+              "restSeconds": {"type": "integer"},
+              "reason": {"type": "string"}
+            },
+            "required": ["dayName", "currentExercise", "newExercise", "sets", "reps", "restSeconds", "reason"],
+            "additionalProperties": false
+          }
+        },
+        "focusForNextWeek": {"type": "array", "items": {"type": "string"}, "description": "1-3 concrete things to focus on"}
+      },
+      "required": ["headline", "summary", "wins", "concerns", "calorieChange", "proteinChange", "nutritionReason", "trainingChanges", "focusForNextWeek"],
       "additionalProperties": false
     }
     """.trimIndent()

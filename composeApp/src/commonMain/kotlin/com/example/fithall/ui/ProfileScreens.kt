@@ -20,11 +20,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -35,6 +37,7 @@ import com.example.fithall.model.Equipment
 import com.example.fithall.model.Experience
 import com.example.fithall.model.Goal
 import com.example.fithall.model.Sex
+import com.example.fithall.model.TargetAdjustment
 import com.example.fithall.model.UserProfile
 import kotlin.math.roundToInt
 
@@ -56,18 +59,32 @@ fun OnboardingScreen(onSave: (UserProfile) -> Unit) {
 }
 
 @Composable
-fun ProfileScreen(profile: UserProfile, viewModel: AppViewModel) {
+fun ProfileScreen(profile: UserProfile, adjustment: TargetAdjustment, viewModel: AppViewModel) {
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text("Your profile", style = MaterialTheme.typography.headlineSmall)
-        val targets = MacroCalculator.targets(profile)
+        val targets = MacroCalculator.targets(profile, adjustment)
         Text(
             "Maintenance ≈ ${MacroCalculator.tdee(profile).roundToInt()} kcal/day · " +
                 "Target ${targets.calories} kcal · P ${targets.proteinG} g · C ${targets.carbsG} g · F ${targets.fatG} g",
             style = MaterialTheme.typography.bodyMedium,
         )
+        if (!adjustment.isZero) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "Includes weekly check-in adjustments: " + listOfNotNull(
+                        adjustment.calories.takeIf { it != 0 }?.let { "${if (it > 0) "+" else ""}$it kcal" },
+                        adjustment.proteinG.takeIf { it != 0 }?.let { "${if (it > 0) "+" else ""}$it g protein" },
+                    ).joinToString(", "),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = viewModel::resetAdjustment) { Text("Reset") }
+            }
+        }
         Spacer(Modifier.height(8.dp))
         ProfileForm(
             initial = profile,

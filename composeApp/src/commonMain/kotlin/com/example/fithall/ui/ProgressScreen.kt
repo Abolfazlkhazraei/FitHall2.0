@@ -57,6 +57,7 @@ fun ProgressScreen(state: AppState, viewModel: AppViewModel) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item { Text("Progress", style = MaterialTheme.typography.headlineSmall) }
+        item { CheckInSection(state, viewModel) }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 StatCard(

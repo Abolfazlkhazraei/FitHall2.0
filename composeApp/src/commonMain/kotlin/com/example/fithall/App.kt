@@ -8,6 +8,8 @@ import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -73,7 +75,10 @@ fun App(repository: AppRepository, ai: AiService) {
                         NavigationBarItem(
                             selected = tab == item,
                             onClick = { tab = item },
-                            icon = { Icon(item.icon, contentDescription = null) },
+                            icon = {
+                                val badge = item == Tab.PROGRESS && (state.checkInDue || state.pendingCheckIn != null)
+                                BadgedBox(badge = { if (badge) Badge() }) { Icon(item.icon, contentDescription = null) }
+                            },
                             label = { Text(item.label) },
                         )
                     }
@@ -86,7 +91,7 @@ fun App(repository: AppRepository, ai: AiService) {
                     Tab.WORKOUTS -> WorkoutScreen(state, viewModel)
                     Tab.PROGRESS -> ProgressScreen(state, viewModel)
                     Tab.COACH -> CoachScreen(state, viewModel)
-                    Tab.PROFILE -> ProfileScreen(profile, viewModel)
+                    Tab.PROFILE -> ProfileScreen(profile, state.adjustment, viewModel)
                 }
             }
         }
