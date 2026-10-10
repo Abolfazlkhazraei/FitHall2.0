@@ -1,0 +1,62 @@
+# Checks that the iOS app still builds, since it can't be built on Windows: compiles the shared
+# Kotlin code for iOS, runs the shared tests on the iOS simulator, and builds the Xcode app.
+name: iOS build
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # Kotlin/Native downloads a large toolchain on first use.
+      - name: Cache Kotlin/Native
+        uses: actions/cache@v4
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml') }}
+          restore-keys: konan-${{ runner.os }}-
+
+      - name: Compile shared code and link the iOS framework
+        run: ./gradlew :composeApp:linkDebugFrameworkIosSimulatorArm64 :composeApp:compileKotlinIosArm64 --stacktrace
+
+      - name: Run shared tests on the iOS simulator
+        run: ./gradlew :composeApp:iosSimulatorArm64Test :shared:iosSimulatorArm64Test --stacktrace
+
+      - name: Build the Xcode app for the simulator (unsigned)
+        run: |
+          xcodebuild \
+            -project iosApp/iosApp.xcodeproj \
+            -target iosApp \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -arch arm64 \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-test-reports
+          path: |
+            composeApp/build/reports/tests/
+            shared/build/reports/tests/
+          if-no-files-found: ignore

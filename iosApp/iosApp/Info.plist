@@ -4,5 +4,15 @@
 <dict>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+	<!-- The FitHall server the app talks to; set FITHALL_BACKEND_URL in Configuration/Config.xcconfig. -->
+	<key>FitHallBackendURL</key>
+	<string>$(FITHALL_BACKEND_URL)</string>
+	<!-- Development: allow plain HTTP to a server on this Mac or the local network.
+	     Your deployed server must use HTTPS, which needs no exception. -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 </dict>
 </plist>
