@@ -39,7 +39,7 @@ class WorkoutSessionTest {
         assertNotNull(repo.activeWorkout, "session should be saved while in progress")
         assertTrue(vm.finishWorkout("felt good"))
 
-        val saved = repo.workoutLogs.single()
+        val saved = repo.history.workouts().single()
         assertEquals(listOf("Goblet Squat"), saved.exercises.map { it.name })
         assertEquals(listOf(10, 8), saved.exercises.single().sets.map { it.reps })
         assertEquals(360.0, saved.volumeKg)
@@ -92,7 +92,7 @@ class WorkoutSessionTest {
         val vm = viewModel(repo)
         vm.logWeight(69.5)
         vm.logWeight(69.2)
-        assertEquals(listOf(69.2), repo.weights.map { it.weightKg })
+        assertEquals(listOf(69.2), repo.history.weights().map { it.weightKg })
         assertEquals(69.2, repo.profile!!.weightKg)
         assertEquals(69.2, vm.state.value.profile!!.weightKg)
     }

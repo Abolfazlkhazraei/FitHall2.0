@@ -188,7 +188,7 @@ class CheckInTest {
             profile = this@CheckInTest.profile
             workoutPlan = plan
             // Pending check-in as if the AI had already answered.
-            checkIns = listOf(
+            history.saveCheckIn(
                 WeeklyCheckIn(
                     "c1", "2026-10-10", 1,
                     result(
@@ -212,7 +212,7 @@ class CheckInTest {
         assertEquals(TargetAdjustment(150, 0), repo.targetAdjustment)
         assertEquals("Incline Bench", repo.workoutPlan!!.days[0].exercises[0].name)
         assertEquals("Squat", repo.workoutPlan!!.days[1].exercises[0].name)
-        val applied = repo.checkIns.single()
+        val applied = repo.history.checkIns().single()
         assertEquals(CheckInStatus.APPLIED, applied.status)
         assertEquals(150, applied.appliedCalorieChange)
         assertEquals(1, applied.appliedTrainingChanges)
@@ -224,11 +224,11 @@ class CheckInTest {
     fun dismissingKeepsEverythingAsIs() {
         val repo = AppRepository(InMemoryKeyValueStore()).apply {
             profile = this@CheckInTest.profile
-            checkIns = listOf(WeeklyCheckIn("c1", "2026-10-10", 1, result(calories = -200)))
+            history.saveCheckIn(WeeklyCheckIn("c1", "2026-10-10", 1, result(calories = -200)))
         }
         val vm = AppViewModel(repo, FakeAi(result()))
         vm.dismissCheckIn("c1")
-        assertEquals(CheckInStatus.DISMISSED, repo.checkIns.single().status)
+        assertEquals(CheckInStatus.DISMISSED, repo.history.checkIns().single().status)
         assertTrue(repo.targetAdjustment.isZero)
     }
 

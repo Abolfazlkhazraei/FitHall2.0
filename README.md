@@ -154,6 +154,19 @@ The `.aab` is in `composeApp/build/outputs/bundle/release/`. Increase `VERSION_C
 upload. Shrinking can break code that relies on reflection, so test the release build itself
 (an internal testing track is the easiest way) before promoting it.
 
+## Storage
+
+Meals, workouts, weigh-ins, check-ins and coach chat are stored in SQLite (`fithall.db`) through
+[SQLDelight](https://sqldelight.github.io/sqldelight/). Each row keeps the columns used for lookups
+(id, day, time) plus the full record as JSON, so every change writes one row. The profile, plans,
+the workout in progress, targets, consent and the device token stay in SharedPreferences. Installs
+from before the database copy their old data in once, on first launch.
+
+The schema is in `composeApp/src/commonMain/sqldelight/com/fithall/app/db/History.sq`. **After the
+first release, never edit a table in place:** add a numbered migration file (`1.sqm`, `2.sqm`...)
+next to it, or existing users' apps will fail to open their database. iOS and Desktop still keep
+everything in memory.
+
 ## Privacy
 
 - The app opens with a consent screen that explains what's sent where, and asks for explicit
@@ -192,7 +205,7 @@ These override the user's choices and anything the AI suggests (`shared/.../mode
 | Weekly check-in: weight trend, adherence, stalled lifts, bounded changes | `commonMain/.../domain/CheckInCalculator.kt` |
 | Barcode lookup (Open Food Facts) and portion math | `commonMain/.../data/FoodDatabase.kt`, `androidMain/.../data/OpenFoodFactsDatabase.kt` |
 | Voice input and barcode scanner (Android) | `androidMain/.../platform/FoodInput.android.kt` |
-| On-device storage (SharedPreferences, JSON) | `commonMain/.../data/AppRepository.kt` |
+| On-device storage: history in SQLite (SQLDelight), single values in SharedPreferences | `commonMain/.../data/HistoryStore.kt`, `AppRepository.kt`, `src/commonMain/sqldelight/` |
 | Camera / gallery capture | `androidMain/.../platform/Platform.android.kt` |
 | Screens (Nutrition, Workouts + live session, Progress, Coach, Profile) | `commonMain/.../ui/` |
 

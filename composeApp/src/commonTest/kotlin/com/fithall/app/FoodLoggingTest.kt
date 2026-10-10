@@ -133,7 +133,7 @@ class FoodLoggingTest {
 
         vm.logProduct(found.product, 1.0, PortionUnit.SERVINGS)
         assertEquals(ScanState.Idle, vm.state.value.scan)
-        val logged = repo.meals.single().analysis
+        val logged = repo.history.meals().single().analysis
         assertEquals("Acme Protein Bar", logged.mealName)
         assertEquals(240, logged.totals.calories)
     }

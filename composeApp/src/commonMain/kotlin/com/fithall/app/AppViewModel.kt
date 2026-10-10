@@ -35,6 +35,9 @@ import com.fithall.app.model.WorkoutPlan
 import com.fithall.app.platform.nowMillis
 import com.fithall.app.platform.todayKey
 import kotlinx.coroutines.CancellationException
+import kotlinx.datetime.DatePeriod
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.minus
 import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -105,14 +108,14 @@ class AppViewModel(
     private val _state = MutableStateFlow(
         AppState(
             profile = repository.profile,
-            meals = repository.meals,
+            meals = repository.history.meals(sinceDayKey = daysAgo(MEAL_HISTORY_DAYS)),
             workoutPlan = repository.workoutPlan,
             nutritionPlan = repository.nutritionPlan,
-            chat = repository.chat,
-            workoutLogs = repository.workoutLogs,
+            chat = repository.history.chat(),
+            workoutLogs = repository.history.workouts(),
             activeWorkout = repository.activeWorkout,
-            weights = repository.weights,
-            checkIns = repository.checkIns,
+            weights = repository.history.weights(),
+            checkIns = repository.history.checkIns(),
             adjustment = repository.targetAdjustment,
             consent = repository.consent,
         )
@@ -238,17 +241,15 @@ class AppViewModel(
             dayKey = todayKey(),
             analysis = analysis,
         )
-        val meals = _state.value.meals + entry
-        repository.meals = meals
-        _state.update { it.copy(meals = meals, scan = ScanState.Idle, today = todayKey()) }
+        repository.history.saveMeal(entry)
+        _state.update { it.copy(meals = it.meals + entry, scan = ScanState.Idle, today = todayKey()) }
     }
 
     fun cancelScan() = _state.update { it.copy(scan = ScanState.Idle) }
 
     fun deleteMeal(id: String) {
-        val meals = _state.value.meals.filterNot { it.id == id }
-        repository.meals = meals
-        _state.update { it.copy(meals = meals) }
+        repository.history.deleteMeal(id)
+        _state.update { it.copy(meals = it.meals.filterNot { meal -> meal.id == id }) }
     }
 
     // ---- Plans ----
@@ -344,10 +345,10 @@ class AppViewModel(
             return false
         }
         val finished = active.copy(exercises = exercises, finishedAtMillis = nowMillis(), notes = notes.trim())
-        val logs = _state.value.workoutLogs + finished
-        repository.workoutLogs = logs
+        // Save the finished session before clearing the in-progress one, so a crash can't lose it.
+        repository.history.saveWorkout(finished)
         repository.activeWorkout = null
-        _state.update { it.copy(workoutLogs = logs, activeWorkout = null, today = todayKey()) }
+        _state.update { it.copy(workoutLogs = it.workoutLogs + finished, activeWorkout = null, today = todayKey()) }
         return true
     }
 
@@ -357,9 +358,8 @@ class AppViewModel(
     }
 
     fun deleteWorkoutLog(id: String) {
-        val logs = _state.value.workoutLogs.filterNot { it.id == id }
-        repository.workoutLogs = logs
-        _state.update { it.copy(workoutLogs = logs) }
+        repository.history.deleteWorkout(id)
+        _state.update { it.copy(workoutLogs = it.workoutLogs.filterNot { log -> log.id == id }) }
     }
 
     private fun saveActive(log: WorkoutLog) {
@@ -376,18 +376,17 @@ class AppViewModel(
     /** Records today's weight (one entry per day) and keeps the profile, and so the targets, in sync. */
     fun logWeight(kg: Double) {
         val today = todayKey()
-        val weights = (_state.value.weights.filterNot { it.dayKey == today } + WeightEntry(today, kg))
-            .sortedBy { it.dayKey }
-        repository.weights = weights
+        val entry = WeightEntry(today, kg)
+        val weights = (_state.value.weights.filterNot { it.dayKey == today } + entry).sortedBy { it.dayKey }
+        repository.history.saveWeight(entry)
         val profile = _state.value.profile?.copy(weightKg = kg)
         if (profile != null) repository.profile = profile
         _state.update { it.copy(weights = weights, profile = profile ?: it.profile, today = today) }
     }
 
     fun deleteWeight(dayKey: String) {
-        val weights = _state.value.weights.filterNot { it.dayKey == dayKey }
-        repository.weights = weights
-        _state.update { it.copy(weights = weights) }
+        repository.history.deleteWeight(dayKey)
+        _state.update { it.copy(weights = it.weights.filterNot { w -> w.dayKey == dayKey }) }
     }
 
     // ---- Weekly check-in ----
@@ -414,12 +413,15 @@ class AppViewModel(
             runAi { ai.weeklyCheckIn(report) }
                 .onSuccess { result ->
                     // A newer check-in replaces any earlier one that was never acted on.
-                    val earlier = _state.value.checkIns.map {
-                        if (it.status == CheckInStatus.PENDING) it.copy(status = CheckInStatus.DISMISSED) else it
+                    val superseded = _state.value.checkIns
+                        .filter { it.status == CheckInStatus.PENDING }
+                        .map { it.copy(status = CheckInStatus.DISMISSED) }
+                    val created = WeeklyCheckIn(newId(), today, nowMillis(), result)
+                    repository.history.transaction {
+                        superseded.forEach(repository.history::saveCheckIn)
+                        repository.history.saveCheckIn(created)
                     }
-                    val checkIns = earlier + WeeklyCheckIn(newId(), today, nowMillis(), result)
-                    repository.checkIns = checkIns
-                    _state.update { it.copy(checkIns = checkIns) }
+                    _state.update { s -> s.copy(checkIns = s.checkIns.replaceAll(superseded) + created) }
                 }
                 .onFailure { e -> _state.update { it.copy(error = e.userMessage()) } }
             _state.update { it.copy(runningCheckIn = false) }
@@ -451,9 +453,9 @@ class AppViewModel(
             appliedProteinChange = adjustment.proteinG - s.adjustment.proteinG,
             appliedTrainingChanges = appliedTraining,
         )
-        val checkIns = s.checkIns.map { if (it.id == id) updated else it }
+        val checkIns = s.checkIns.replaceAll(listOf(updated))
 
-        repository.checkIns = checkIns
+        repository.history.saveCheckIn(updated)
         repository.targetAdjustment = adjustment
         if (plan != null && appliedTraining > 0) repository.workoutPlan = plan
         _state.update {
@@ -471,11 +473,10 @@ class AppViewModel(
     }
 
     fun dismissCheckIn(id: String) {
-        val checkIns = _state.value.checkIns.map {
-            if (it.id == id && it.status == CheckInStatus.PENDING) it.copy(status = CheckInStatus.DISMISSED) else it
-        }
-        repository.checkIns = checkIns
-        _state.update { it.copy(checkIns = checkIns) }
+        val pending = _state.value.checkIns.firstOrNull { it.id == id && it.status == CheckInStatus.PENDING } ?: return
+        val dismissed = pending.copy(status = CheckInStatus.DISMISSED)
+        repository.history.saveCheckIn(dismissed)
+        _state.update { it.copy(checkIns = it.checkIns.replaceAll(listOf(dismissed))) }
     }
 
     fun resetAdjustment() {
@@ -488,15 +489,16 @@ class AppViewModel(
     fun sendCoachMessage(text: String) {
         val trimmed = text.trim()
         if (trimmed.isEmpty() || _state.value.coachTyping) return
-        val history = _state.value.chat + ChatMessage(ChatRole.USER, trimmed)
-        repository.chat = history
+        val message = ChatMessage(ChatRole.USER, trimmed)
+        val history = _state.value.chat + message
+        repository.history.appendChat(message)
         _state.update { it.copy(chat = history, coachTyping = true) }
         viewModelScope.launch {
             runAi { ai.coachReply(coachContext(_state.value), history.takeLast(MAX_CHAT_TURNS)) }
                 .onSuccess { reply ->
-                    val updated = history + ChatMessage(ChatRole.ASSISTANT, reply)
-                    repository.chat = updated
-                    _state.update { it.copy(chat = updated) }
+                    val answer = ChatMessage(ChatRole.ASSISTANT, reply)
+                    repository.history.appendChat(answer)
+                    _state.update { it.copy(chat = it.chat + answer) }
                 }
                 .onFailure { e -> _state.update { it.copy(error = e.userMessage()) } }
             _state.update { it.copy(coachTyping = false) }
@@ -504,7 +506,7 @@ class AppViewModel(
     }
 
     fun clearChat() {
-        repository.chat = emptyList()
+        repository.history.clearChat()
         _state.update { it.copy(chat = emptyList()) }
     }
 
@@ -540,6 +542,15 @@ class AppViewModel(
         }
     }.trim()
 
+    /** Replaces entries with the same id. */
+    private fun List<WeeklyCheckIn>.replaceAll(updated: List<WeeklyCheckIn>): List<WeeklyCheckIn> {
+        val byId = updated.associateBy { it.id }
+        return map { byId[it.id] ?: it }
+    }
+
+    private fun daysAgo(days: Int): String =
+        LocalDate.parse(todayKey()).minus(DatePeriod(days = days)).toString()
+
     private fun newId() = "${nowMillis()}-${Random.nextInt(1_000_000)}"
 
     private inline fun <T> List<T>.mapAt(index: Int, transform: (T) -> T): List<T> =
@@ -559,5 +570,8 @@ class AppViewModel(
 
     private companion object {
         const val MAX_CHAT_TURNS = 30
+
+        /** Meals kept in memory: today, the weekly check-in and the coach need far less. Older meals stay in the database (and in exports). */
+        const val MEAL_HISTORY_DAYS = 60
     }
 }

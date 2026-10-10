@@ -52,7 +52,7 @@ class PrivacyTest {
         val store = InMemoryKeyValueStore().apply { put("backend_device_token", "v2.abc.full.sig") }
         val repo = AppRepository(store).apply {
             this.profile = this@PrivacyTest.profile
-            weights = listOf(WeightEntry("2026-10-10", 84.0))
+            history.saveWeight(WeightEntry("2026-10-10", 84.0))
         }
         var cachesCleared = false
         val vm = AppViewModel(repo, UnavailableAiService("offline"), clearCaches = { cachesCleared = true })
@@ -62,7 +62,7 @@ class PrivacyTest {
 
         assertNull(store.get("backend_device_token"))
         assertNull(repo.profile)
-        assertTrue(repo.weights.isEmpty())
+        assertTrue(repo.history.weights().isEmpty())
         assertNull(repo.consent)
         assertTrue(cachesCleared)
         assertNull(vm.state.value.profile)
@@ -74,7 +74,7 @@ class PrivacyTest {
         val store = InMemoryKeyValueStore().apply { put("backend_device_token", "secret-token") }
         val repo = AppRepository(store).apply {
             this.profile = this@PrivacyTest.profile
-            weights = listOf(WeightEntry("2026-10-10", 84.0))
+            history.saveWeight(WeightEntry("2026-10-10", 84.0))
         }
         val exported = repo.exportJson("2026-10-10")
         val doc = Json.parseToJsonElement(exported).jsonObject

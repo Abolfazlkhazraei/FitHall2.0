@@ -93,7 +93,7 @@ class SafetyTest {
         val result = CheckInResult("h", "s", emptyList(), emptyList(), -250, 0, "Slow progress", emptyList(), emptyList())
         val repo = AppRepository(InMemoryKeyValueStore()).apply {
             profile = underweight
-            checkIns = listOf(WeeklyCheckIn("c1", "2026-10-10", 1, result))
+            history.saveCheckIn(WeeklyCheckIn("c1", "2026-10-10", 1, result))
         }
         val vm = AppViewModel(repo, UnavailableAiService("offline"))
         val before = vm.state.value.targets!!.calories

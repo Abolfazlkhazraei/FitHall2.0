@@ -23,6 +23,7 @@ ktor = "3.5.2"
 logback = "1.6.5"
 playIntegrity = "1.5.0"
 googleAuth = "1.54.0"
+sqldelight = "2.3.2"
 playServicesCodeScanner = "16.1.0"
 materialIconsExtended = "1.7.3"
 
@@ -68,6 +69,9 @@ ktor-serverForwardedHeader = { module = "io.ktor:ktor-server-forwarded-header", 
 ktor-serverTestHost = { module = "io.ktor:ktor-server-test-host", version.ref = "ktor" }
 playIntegrity = { module = "com.google.android.play:integrity", version.ref = "playIntegrity" }
 googleAuth = { module = "com.google.auth:google-auth-library-oauth2-http", version.ref = "googleAuth" }
+sqldelight-runtime = { module = "app.cash.sqldelight:runtime", version.ref = "sqldelight" }
+sqldelight-androidDriver = { module = "app.cash.sqldelight:android-driver", version.ref = "sqldelight" }
+sqldelight-sqliteDriver = { module = "app.cash.sqldelight:sqlite-driver", version.ref = "sqldelight" }
 logback = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
 
 [plugins]
@@ -80,3 +84,4 @@ kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref =
 kotlinSerialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 kotlinJvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 ktor = { id = "io.ktor.plugin", version.ref = "ktor" }
+sqldelight = { id = "app.cash.sqldelight", version.ref = "sqldelight" }

@@ -7,7 +7,10 @@ import androidx.activity.enableEdgeToEdge
 import com.fithall.app.ai.AiService
 import com.fithall.app.ai.BackendAiService
 import com.fithall.app.ai.PlayIntegrityAttestation
+import app.cash.sqldelight.driver.android.AndroidSqliteDriver
 import com.fithall.app.data.AppRepository
+import com.fithall.app.data.SqlHistoryStore
+import com.fithall.app.db.FitHallDatabase
 import com.fithall.app.data.OpenFoodFactsDatabase
 import com.fithall.app.platform.SharedPreferencesStore
 import com.fithall.app.platform.clearAppCaches
@@ -18,7 +21,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         val store = SharedPreferencesStore(applicationContext)
-        val repository = AppRepository(store)
+        val database = AndroidSqliteDriver(FitHallDatabase.Schema, applicationContext, "fithall.db")
+        val repository = AppRepository(store, SqlHistoryStore(database))
         val ai: AiService = BackendAiService(
             baseUrl = BuildConfig.BACKEND_URL,
             store = store,

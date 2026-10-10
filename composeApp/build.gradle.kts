@@ -9,6 +9,7 @@ plugins {
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.composeHotReload)
     alias(libs.plugins.kotlinSerialization)
+    alias(libs.plugins.sqldelight)
 }
 
 // The app talks only to the FitHall server, which holds the Anthropic key. Set BACKEND_URL in
@@ -69,6 +70,7 @@ kotlin {
             implementation(libs.androidx.activity.compose)
             implementation(libs.okhttp)
             implementation(libs.ktor.clientOkhttp)
+            implementation(libs.sqldelight.androidDriver)
             implementation(libs.playServices.codeScanner)
             implementation(libs.playIntegrity)
         }
@@ -89,6 +91,7 @@ kotlin {
             implementation(libs.ktor.clientCore)
             implementation(libs.ktor.clientContentNegotiation)
             implementation(libs.ktor.serializationJson)
+            implementation(libs.sqldelight.runtime)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
@@ -102,6 +105,9 @@ kotlin {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutinesSwing)
             implementation(libs.ktor.clientOkhttp)
+        }
+        jvmTest.dependencies {
+            implementation(libs.sqldelight.sqliteDriver)
         }
     }
 }
@@ -171,6 +177,17 @@ val checkReleaseConfig by tasks.registering {
     }
 }
 tasks.matching { it.name == "preReleaseBuild" }.configureEach { dependsOn(checkReleaseConfig) }
+
+// History (meals, workouts, weigh-ins, check-ins, chat) lives in SQLite; tables are defined in
+// src/commonMain/sqldelight. Once version 1 has shipped, any table change needs a numbered .sqm
+// migration (see https://sqldelight.github.io/sqldelight/latest/multiplatform_sqlite/migrations/).
+sqldelight {
+    databases {
+        create("FitHallDatabase") {
+            packageName.set("com.fithall.app.db")
+        }
+    }
+}
 
 compose.desktop {
     application {

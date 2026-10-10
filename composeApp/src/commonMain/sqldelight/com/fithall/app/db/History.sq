@@ -1,0 +1,105 @@
+-- FitHall's growing history. Each row keeps the columns used for lookups and ordering, plus
+-- the full record as JSON (the @Serializable model classes), so one change writes one row.
+
+CREATE TABLE meal (
+    id TEXT NOT NULL PRIMARY KEY,
+    day_key TEXT NOT NULL,          -- yyyy-MM-dd, local date
+    timestamp INTEGER NOT NULL,     -- epoch millis
+    json TEXT NOT NULL              -- MealEntry
+);
+CREATE INDEX meal_by_day ON meal(day_key);
+
+CREATE TABLE workout_log (
+    id TEXT NOT NULL PRIMARY KEY,
+    day_key TEXT NOT NULL,
+    started_at INTEGER NOT NULL,
+    json TEXT NOT NULL              -- WorkoutLog
+);
+CREATE INDEX workout_by_start ON workout_log(started_at);
+
+CREATE TABLE body_weight (
+    day_key TEXT NOT NULL PRIMARY KEY,  -- one weigh-in per day
+    weight_kg REAL NOT NULL
+);
+
+CREATE TABLE check_in (
+    id TEXT NOT NULL PRIMARY KEY,
+    created_at INTEGER NOT NULL,
+    status TEXT NOT NULL,           -- CheckInStatus
+    json TEXT NOT NULL              -- WeeklyCheckIn
+);
+
+CREATE TABLE chat_message (
+    seq INTEGER PRIMARY KEY AUTOINCREMENT,
+    role TEXT NOT NULL,             -- ChatRole
+    text TEXT NOT NULL
+);
+
+-- Meals
+
+mealsSince:
+SELECT json FROM meal WHERE day_key >= ? ORDER BY timestamp;
+
+allMeals:
+SELECT json FROM meal ORDER BY timestamp;
+
+upsertMeal:
+INSERT OR REPLACE INTO meal(id, day_key, timestamp, json) VALUES (?, ?, ?, ?);
+
+deleteMeal:
+DELETE FROM meal WHERE id = ?;
+
+-- Workouts
+
+allWorkouts:
+SELECT json FROM workout_log ORDER BY started_at;
+
+upsertWorkout:
+INSERT OR REPLACE INTO workout_log(id, day_key, started_at, json) VALUES (?, ?, ?, ?);
+
+deleteWorkout:
+DELETE FROM workout_log WHERE id = ?;
+
+-- Body weight
+
+allWeights:
+SELECT day_key, weight_kg FROM body_weight ORDER BY day_key;
+
+upsertWeight:
+INSERT OR REPLACE INTO body_weight(day_key, weight_kg) VALUES (?, ?);
+
+deleteWeight:
+DELETE FROM body_weight WHERE day_key = ?;
+
+-- Check-ins
+
+allCheckIns:
+SELECT json FROM check_in ORDER BY created_at;
+
+upsertCheckIn:
+INSERT OR REPLACE INTO check_in(id, created_at, status, json) VALUES (?, ?, ?, ?);
+
+-- Coach chat
+
+allChat:
+SELECT role, text FROM chat_message ORDER BY seq;
+
+insertChat:
+INSERT INTO chat_message(role, text) VALUES (?, ?);
+
+clearChat:
+DELETE FROM chat_message;
+
+-- Everything
+
+deleteAllMeals:
+DELETE FROM meal;
+
+deleteAllWorkouts:
+DELETE FROM workout_log;
+
+deleteAllWeights:
+DELETE FROM body_weight;
+
+deleteAllCheckIns:
+DELETE FROM check_in;
