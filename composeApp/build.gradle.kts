@@ -71,6 +71,7 @@ kotlin {
             implementation(libs.okhttp)
             implementation(libs.ktor.clientOkhttp)
             implementation(libs.sqldelight.androidDriver)
+            implementation(libs.androidx.workRuntime)
             implementation(libs.playServices.codeScanner)
             implementation(libs.playIntegrity)
         }

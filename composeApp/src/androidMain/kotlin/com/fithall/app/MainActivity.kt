@@ -12,6 +12,8 @@ import com.fithall.app.data.AppRepository
 import com.fithall.app.data.SqlHistoryStore
 import com.fithall.app.db.FitHallDatabase
 import com.fithall.app.data.OpenFoodFactsDatabase
+import com.fithall.app.platform.AndroidReminderScheduler
+import com.fithall.app.platform.DATABASE_NAME
 import com.fithall.app.platform.SharedPreferencesStore
 import com.fithall.app.platform.clearAppCaches
 
@@ -21,7 +23,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         val store = SharedPreferencesStore(applicationContext)
-        val database = AndroidSqliteDriver(FitHallDatabase.Schema, applicationContext, "fithall.db")
+        val database = AndroidSqliteDriver(FitHallDatabase.Schema, applicationContext, DATABASE_NAME)
         val repository = AppRepository(store, SqlHistoryStore(database))
         val ai: AiService = BackendAiService(
             baseUrl = BuildConfig.BACKEND_URL,
@@ -36,7 +38,15 @@ class MainActivity : ComponentActivity() {
                 foods = OpenFoodFactsDatabase(),
                 privacyPolicyUrl = BuildConfig.PRIVACY_POLICY_URL,
                 clearCaches = { clearAppCaches(applicationContext) },
+                reminders = AndroidReminderScheduler(applicationContext),
+                openProgress = intent?.getStringExtra(EXTRA_OPEN) == OPEN_PROGRESS,
             )
         }
+    }
+
+    companion object {
+        /** Set by the check-in reminder notification to open the Progress tab. */
+        const val EXTRA_OPEN = "com.fithall.app.OPEN"
+        const val OPEN_PROGRESS = "progress"
     }
 }

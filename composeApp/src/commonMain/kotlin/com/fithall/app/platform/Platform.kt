@@ -44,3 +44,13 @@ interface FileExporter {
 
 @Composable
 expect fun rememberFileExporter(): FileExporter
+
+/** Permission to post notifications (a runtime permission on Android 13+). */
+interface NotificationPermission {
+    val isSupported: Boolean
+    /** Asks if needed; [onResult] gets whether notifications can be shown. */
+    fun request(onResult: (Boolean) -> Unit)
+}
+
+@Composable
+expect fun rememberNotificationPermission(): NotificationPermission

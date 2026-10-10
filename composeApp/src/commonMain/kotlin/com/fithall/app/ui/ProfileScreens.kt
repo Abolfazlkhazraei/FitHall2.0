@@ -24,6 +24,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -39,6 +40,9 @@ import com.fithall.app.model.Goal
 import com.fithall.app.model.Safety
 import com.fithall.app.model.Sex
 import com.fithall.app.model.TargetAdjustment
+import com.fithall.app.model.UnitSystem
+import com.fithall.app.platform.rememberNotificationPermission
+import com.fithall.app.model.Units
 import com.fithall.app.model.UserProfile
 import kotlin.math.roundToInt
 
@@ -60,7 +64,13 @@ fun OnboardingScreen(onSave: (UserProfile) -> Unit) {
 }
 
 @Composable
-fun ProfileScreen(profile: UserProfile, adjustment: TargetAdjustment, privacyPolicyUrl: String, viewModel: AppViewModel) {
+fun ProfileScreen(
+    profile: UserProfile,
+    adjustment: TargetAdjustment,
+    remindersOn: Boolean,
+    privacyPolicyUrl: String,
+    viewModel: AppViewModel,
+) {
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -97,6 +107,7 @@ fun ProfileScreen(profile: UserProfile, adjustment: TargetAdjustment, privacyPol
                 viewModel.generateNutritionPlan()
             },
         )
+        RemindersSection(remindersOn, viewModel)
         YourDataSection(privacyPolicyUrl, viewModel)
     }
 }
@@ -107,8 +118,15 @@ private fun ProfileForm(initial: UserProfile?, saveLabel: String, onSave: (UserP
     var name by rememberSaveable { mutableStateOf(initial?.name ?: "") }
     var age by rememberSaveable { mutableStateOf(initial?.age?.toString() ?: "") }
     var sex by rememberSaveable { mutableStateOf(initial?.sex ?: Sex.MALE) }
+    var units by rememberSaveable { mutableStateOf(initial?.units ?: UnitSystem.METRIC) }
+    // Height: cm in metric, feet + inches in imperial. Weight is typed in the chosen unit.
     var height by rememberSaveable { mutableStateOf(initial?.heightCm?.toString() ?: "") }
-    var weight by rememberSaveable { mutableStateOf(initial?.weightKg?.toString() ?: "") }
+    val initialFtIn = initial?.heightCm?.let(Units::cmToFeetInches)
+    var feet by rememberSaveable { mutableStateOf(initialFtIn?.first?.toString() ?: "") }
+    var inches by rememberSaveable { mutableStateOf(initialFtIn?.second?.toString() ?: "") }
+    var weight by rememberSaveable {
+        mutableStateOf(initial?.let { formatNumber(Units.kgToDisplay(it.weightKg, it.units)) } ?: "")
+    }
     var activity by rememberSaveable { mutableStateOf(initial?.activityLevel ?: ActivityLevel.MODERATE) }
     var experience by rememberSaveable { mutableStateOf(initial?.experience ?: Experience.BEGINNER) }
     var goal by rememberSaveable { mutableStateOf(initial?.goal ?: Goal.BUILD_MUSCLE) }
@@ -120,18 +138,49 @@ private fun ProfileForm(initial: UserProfile?, saveLabel: String, onSave: (UserP
 
     val ageNumber = age.toIntOrNull()
     val ageValue = ageNumber?.takeIf { it in Safety.MIN_AGE..Safety.MAX_AGE }
-    val heightValue = height.toIntOrNull()?.takeIf { it in 100..250 }
-    val weightValue = weight.replace(',', '.').toDoubleOrNull()?.takeIf { it in 30.0..300.0 }
+    // Everything below is metric, whatever the user typed in.
+    val heightValue = when (units) {
+        UnitSystem.METRIC -> height.toIntOrNull()
+        UnitSystem.IMPERIAL -> feet.toIntOrNull()?.let { ft -> Units.feetInchesToCm(ft, inches.toIntOrNull() ?: 0) }
+    }?.takeIf { it in 100..250 }
+    val weightValue = weight.replace(',', '.').toDoubleOrNull()
+        ?.let { Units.displayToKg(it, units) }
+        ?.takeIf { it in 30.0..300.0 }
+
+    fun switchUnits(to: UnitSystem) {
+        if (to == units) return
+        // Carry over whatever was already typed, converted.
+        heightValue?.let { cm ->
+            height = cm.toString()
+            Units.cmToFeetInches(cm).let { (ft, inch) -> feet = ft.toString(); inches = inch.toString() }
+        }
+        weightValue?.let { kg -> weight = formatNumber(Units.kgToDisplay(kg, to)) }
+        units = to
+    }
     val valid = name.isNotBlank() && ageValue != null && heightValue != null && weightValue != null
     val underweight = heightValue != null && weightValue != null &&
         Safety.bmi(weightValue, heightValue) < Safety.UNDERWEIGHT_BMI
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         OutlinedTextField(name, { name = it }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            UnitSystem.entries.forEach { FilterChip(units == it, { switchUnits(it) }, label = { Text(it.label) }) }
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             NumberField(age, { age = it }, "Age", Modifier.weight(1f), error = age.isNotEmpty() && ageValue == null)
-            NumberField(height, { height = it }, "Height (cm)", Modifier.weight(1f), error = height.isNotEmpty() && heightValue == null)
-            NumberField(weight, { weight = it }, "Weight (kg)", Modifier.weight(1f), decimal = true, error = weight.isNotEmpty() && weightValue == null)
+            when (units) {
+                UnitSystem.METRIC ->
+                    NumberField(height, { height = it }, "Height (cm)", Modifier.weight(1f), error = height.isNotEmpty() && heightValue == null)
+                UnitSystem.IMPERIAL -> {
+                    val heightError = feet.isNotEmpty() && heightValue == null
+                    NumberField(feet, { feet = it }, "Height (ft)", Modifier.weight(0.8f), error = heightError)
+                    NumberField(inches, { inches = it }, "in", Modifier.weight(0.6f), error = heightError)
+                }
+            }
+            NumberField(
+                weight, { weight = it }, "Weight (${Units.weightUnit(units)})", Modifier.weight(1f),
+                decimal = true, error = weight.isNotEmpty() && weightValue == null,
+            )
         }
         if (ageNumber != null && ageNumber < Safety.MIN_AGE) {
             Text(
@@ -221,6 +270,7 @@ private fun ProfileForm(initial: UserProfile?, saveLabel: String, onSave: (UserP
                         sessionMinutes = minutes,
                         dietaryNotes = diet.trim(),
                         injuries = injuries.trim(),
+                        units = units,
                     )
                 )
             },
@@ -268,5 +318,45 @@ fun SafetyNotice(text: String) {
             color = MaterialTheme.colorScheme.onErrorContainer,
             modifier = Modifier.padding(12.dp),
         )
+    }
+}
+
+@Composable
+private fun RemindersSection(remindersOn: Boolean, viewModel: AppViewModel) {
+    val permission = rememberNotificationPermission()
+    if (!permission.isSupported) return
+    var blocked by remember { mutableStateOf(false) }
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        androidx.compose.material3.HorizontalDivider(Modifier.padding(vertical = 8.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Weekly check-in reminder", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "A notification when your check-in is ready, at most once a week.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            androidx.compose.material3.Switch(
+                checked = remindersOn,
+                onCheckedChange = { on ->
+                    if (!on) {
+                        viewModel.setCheckInReminders(false)
+                    } else {
+                        permission.request { granted ->
+                            blocked = !granted
+                            if (granted) viewModel.setCheckInReminders(true)
+                        }
+                    }
+                },
+            )
+        }
+        if (blocked) {
+            Text(
+                "Notifications are turned off for FitHall. Allow them in your phone's settings to get reminders.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
     }
 }

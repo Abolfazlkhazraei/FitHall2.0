@@ -37,6 +37,13 @@ enum class Equipment(val label: String) {
     BODYWEIGHT("Bodyweight only"),
 }
 
+/** Display and input units. Everything is stored in kg and cm regardless. */
+@Serializable
+enum class UnitSystem(val label: String) {
+    METRIC("Metric (kg, cm)"),
+    IMPERIAL("Imperial (lb, ft/in)"),
+}
+
 @Serializable
 data class UserProfile(
     val name: String,
@@ -52,6 +59,7 @@ data class UserProfile(
     val sessionMinutes: Int,
     val dietaryNotes: String = "",
     val injuries: String = "",
+    val units: UnitSystem = UnitSystem.METRIC,
 )
 
 @Serializable

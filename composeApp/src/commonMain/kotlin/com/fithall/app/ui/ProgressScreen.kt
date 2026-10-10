@@ -42,12 +42,15 @@ import androidx.compose.ui.unit.dp
 import com.fithall.app.AppState
 import com.fithall.app.AppViewModel
 import com.fithall.app.domain.ProgressCalculator
+import com.fithall.app.model.UnitSystem
+import com.fithall.app.model.Units
 import com.fithall.app.model.WeightEntry
 import com.fithall.app.model.WorkoutLog
 
 @Composable
 fun ProgressScreen(state: AppState, viewModel: AppViewModel) {
     val logs = state.workoutLogs
+    val units = state.profile?.units ?: UnitSystem.METRIC
     val stats = remember(logs, state.today) { ProgressCalculator.weeklyStats(logs, state.today) }
     var deleting by remember { mutableStateOf<WorkoutLog?>(null) }
 
@@ -66,11 +69,11 @@ fun ProgressScreen(state: AppState, viewModel: AppViewModel) {
                     Modifier.weight(1f),
                 )
                 StatCard("${stats.weekStreak}", if (stats.weekStreak == 1) "week streak" else "weeks streak", Modifier.weight(1f))
-                StatCard("${formatNumber(stats.volumeLast7DaysKg / 1000)} t", "lifted, last 7 days", Modifier.weight(1f))
+                StatCard(formatVolume(stats.volumeLast7DaysKg, units), "lifted, last 7 days", Modifier.weight(1f))
             }
         }
-        item { BodyWeightCard(state.weights, onLog = viewModel::logWeight, onDelete = viewModel::deleteWeight) }
-        item { ExerciseProgressCard(logs) }
+        item { BodyWeightCard(state.weights, units, onLog = viewModel::logWeight, onDelete = viewModel::deleteWeight) }
+        item { ExerciseProgressCard(logs, units) }
 
         item { Text("Workout history", style = MaterialTheme.typography.titleMedium) }
         if (logs.isEmpty()) {
@@ -83,7 +86,7 @@ fun ProgressScreen(state: AppState, viewModel: AppViewModel) {
             }
         }
         items(logs.sortedByDescending { it.startedAtMillis }, key = { it.id }) { log ->
-            HistoryCard(log, onDelete = { deleting = log })
+            HistoryCard(log, units, onDelete = { deleting = log })
         }
     }
 
@@ -111,9 +114,10 @@ private fun StatCard(value: String, label: String, modifier: Modifier) {
 }
 
 @Composable
-private fun BodyWeightCard(weights: List<WeightEntry>, onLog: (Double) -> Unit, onDelete: (String) -> Unit) {
+private fun BodyWeightCard(weights: List<WeightEntry>, units: UnitSystem, onLog: (Double) -> Unit, onDelete: (String) -> Unit) {
     var input by rememberSaveable { mutableStateOf("") }
-    val parsed = input.replace(',', '.').toDoubleOrNull()?.takeIf { it in 30.0..300.0 }
+    val parsed = input.replace(',', '.').toDoubleOrNull()?.let { Units.displayToKg(it, units) }?.takeIf { it in 30.0..300.0 }
+    val unit = Units.weightUnit(units)
 
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -122,16 +126,16 @@ private fun BodyWeightCard(weights: List<WeightEntry>, onLog: (Double) -> Unit, 
             if (latest != null) {
                 val change = latest.weightKg - weights.first().weightKg
                 Text(
-                    "${formatNumber(latest.weightKg)} kg" +
-                        if (weights.size > 1) " · ${if (change >= 0) "+" else ""}${formatNumber(change)} kg since ${shortDate(weights.first().dayKey)}" else "",
+                    formatWeight(latest.weightKg, units) +
+                        if (weights.size > 1) " · ${if (change >= 0) "+" else ""}${formatWeight(change, units)} since ${shortDate(weights.first().dayKey)}" else "",
                     style = MaterialTheme.typography.bodyLarge,
                 )
             }
             if (weights.size >= 2) {
                 LineChart(
-                    values = weights.map { it.weightKg },
+                    values = weights.map { Units.kgToDisplay(it.weightKg, units) },
                     labels = weights.map { shortDate(it.dayKey) },
-                    unit = "kg",
+                    unit = unit,
                     color = MacroColors.protein,
                 )
             }
@@ -139,7 +143,7 @@ private fun BodyWeightCard(weights: List<WeightEntry>, onLog: (Double) -> Unit, 
                 OutlinedTextField(
                     input,
                     { new -> input = new.filter { it.isDigit() || it == '.' || it == ',' }.take(5) },
-                    label = { Text("Today's weight (kg)") },
+                    label = { Text("Today's weight ($unit)") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.weight(1f),
@@ -156,7 +160,7 @@ private fun BodyWeightCard(weights: List<WeightEntry>, onLog: (Double) -> Unit, 
                 HorizontalDivider()
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(shortDate(entry.dayKey), modifier = Modifier.weight(1f))
-                    Text("${formatNumber(entry.weightKg)} kg")
+                    Text(formatWeight(entry.weightKg, units))
                     IconButton(onClick = { onDelete(entry.dayKey) }) {
                         Icon(Icons.Filled.Delete, contentDescription = "Delete weight for ${shortDate(entry.dayKey)}")
                     }
@@ -168,7 +172,7 @@ private fun BodyWeightCard(weights: List<WeightEntry>, onLog: (Double) -> Unit, 
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ExerciseProgressCard(logs: List<WorkoutLog>) {
+private fun ExerciseProgressCard(logs: List<WorkoutLog>, units: UnitSystem) {
     val exercises = remember(logs) { ProgressCalculator.trainedExercises(logs) }
     if (exercises.isEmpty()) return
     var chosen by rememberSaveable { mutableStateOf(exercises.first()) }
@@ -183,18 +187,19 @@ private fun ExerciseProgressCard(logs: List<WorkoutLog>) {
                     FilterChip(selected == name, { chosen = name }, label = { Text(name) })
                 }
             }
-            val unit = if (progress.weighted) "kg" else "reps"
+            val unit = if (progress.weighted) Units.weightUnit(units) else "reps"
+            fun shown(value: Double) = if (progress.weighted) Units.kgToDisplay(value, units) else value
             val metric = if (progress.weighted) "Best estimated 1-rep max" else "Best reps in a set"
-            Text("$metric: ${formatNumber(progress.best)} $unit", style = MaterialTheme.typography.bodyLarge)
+            Text("$metric: ${formatNumber(shown(progress.best))} $unit", style = MaterialTheme.typography.bodyLarge)
             if (progress.points.size >= 2) {
-                val change = progress.change
+                val change = shown(progress.change)
                 Text(
                     "${if (change >= 0) "+" else ""}${formatNumber(change)} $unit over ${progress.points.size} sessions",
                     style = MaterialTheme.typography.bodyMedium,
                     color = if (change >= 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
                 )
                 LineChart(
-                    values = progress.points.map { it.value },
+                    values = progress.points.map { shown(it.value) },
                     labels = progress.points.map { shortDate(it.dayKey) },
                     unit = unit,
                 )
@@ -210,7 +215,7 @@ private fun ExerciseProgressCard(logs: List<WorkoutLog>) {
 }
 
 @Composable
-private fun HistoryCard(log: WorkoutLog, onDelete: () -> Unit) {
+private fun HistoryCard(log: WorkoutLog, units: UnitSystem, onDelete: () -> Unit) {
     var expanded by rememberSaveable(log.id) { mutableStateOf(false) }
     Card(Modifier.fillMaxWidth().animateContentSize()) {
         Column(Modifier.clickable { expanded = !expanded }.padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 4.dp)) {
@@ -222,7 +227,7 @@ private fun HistoryCard(log: WorkoutLog, onDelete: () -> Unit) {
                             shortDate(log.dayKey),
                             log.durationMinutes?.let { "$it min" },
                             "${log.completedSets} sets",
-                            log.volumeKg.takeIf { it > 0 }?.let { "${formatNumber(it)} kg" },
+                            log.volumeKg.takeIf { it > 0 }?.let { formatWeight(it, units) },
                         ).joinToString(" · "),
                         style = MaterialTheme.typography.bodySmall,
                     )
@@ -233,7 +238,7 @@ private fun HistoryCard(log: WorkoutLog, onDelete: () -> Unit) {
                 log.exercises.forEach { ex ->
                     Text(
                         "${ex.name}: " + ex.sets.joinToString(", ") { s ->
-                            s.weightKg?.takeIf { it > 0 }?.let { kg -> "${formatNumber(kg)}×${s.reps}" } ?: "${s.reps} reps"
+                            formatSet(s.weightKg, s.reps, units, repsSuffix = " reps")
                         },
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.padding(top = 4.dp, end = 12.dp),

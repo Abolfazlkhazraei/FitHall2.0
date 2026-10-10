@@ -14,6 +14,8 @@ import com.fithall.app.data.PrivacyConsent
 import com.fithall.app.data.PrivacyPolicy
 import com.fithall.app.data.UnavailableFoodDatabase
 import com.fithall.app.domain.CheckInCalculator
+import com.fithall.app.domain.NoReminders
+import com.fithall.app.domain.ReminderScheduler
 import com.fithall.app.domain.MacroCalculator
 import com.fithall.app.domain.ProgressCalculator
 import com.fithall.app.model.ChatMessage
@@ -74,6 +76,7 @@ data class AppState(
     val checkIns: List<WeeklyCheckIn> = emptyList(),
     val adjustment: TargetAdjustment = TargetAdjustment(),
     val consent: PrivacyConsent? = null,
+    val checkInReminders: Boolean = false,
     val today: String = todayKey(),
     val scan: ScanState = ScanState.Idle,
     val generatingWorkout: Boolean = false,
@@ -103,6 +106,7 @@ class AppViewModel(
     private val foods: FoodDatabase = UnavailableFoodDatabase("Barcode lookup is not available on this platform."),
     /** Deletes the platform's temporary files (cached photos, exports) when the user deletes their data. */
     private val clearCaches: () -> Unit = {},
+    private val reminders: ReminderScheduler = NoReminders,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(
@@ -118,8 +122,14 @@ class AppViewModel(
             checkIns = repository.history.checkIns(),
             adjustment = repository.targetAdjustment,
             consent = repository.consent,
+            checkInReminders = repository.checkInReminders,
         )
     )
+
+    init {
+        // Idempotent: keeps the existing schedule if there is one.
+        if (repository.checkInReminders) reminders.schedule()
+    }
     val state: StateFlow<AppState> = _state.asStateFlow()
 
     fun refreshDay() = _state.update { it.copy(today = todayKey()) }
@@ -144,6 +154,7 @@ class AppViewModel(
      */
     fun deleteAllData() {
         viewModelScope.coroutineContext.cancelChildren()
+        reminders.cancel()
         repository.clearAll()
         clearCaches()
         _state.value = AppState()
@@ -246,6 +257,12 @@ class AppViewModel(
     }
 
     fun cancelScan() = _state.update { it.copy(scan = ScanState.Idle) }
+
+    /** Saves edits to a logged meal (changed portions or removed foods). */
+    fun updateMeal(entry: MealEntry) {
+        repository.history.saveMeal(entry)
+        _state.update { s -> s.copy(meals = s.meals.map { if (it.id == entry.id) entry else it }) }
+    }
 
     fun deleteMeal(id: String) {
         repository.history.deleteMeal(id)
@@ -477,6 +494,13 @@ class AppViewModel(
         val dismissed = pending.copy(status = CheckInStatus.DISMISSED)
         repository.history.saveCheckIn(dismissed)
         _state.update { it.copy(checkIns = it.checkIns.replaceAll(listOf(dismissed))) }
+    }
+
+    /** Call with true only after notification permission was granted. */
+    fun setCheckInReminders(enabled: Boolean) {
+        repository.checkInReminders = enabled
+        if (enabled) reminders.schedule() else reminders.cancel()
+        _state.update { it.copy(checkInReminders = enabled) }
     }
 
     fun resetAdjustment() {

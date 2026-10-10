@@ -1,6 +1,7 @@
 package com.fithall.app.ai
 
 import com.fithall.app.model.MacroTargets
+import com.fithall.app.model.UnitSystem
 import com.fithall.app.model.UserProfile
 
 /**
@@ -100,6 +101,9 @@ Write for the user in second person: warm, specific and brief. Wins and concerns
         appendLine("Training days per week: ${p.trainingDaysPerWeek}, session length: ${p.sessionMinutes} minutes")
         if (p.dietaryNotes.isNotBlank()) appendLine("Dietary notes: ${p.dietaryNotes}")
         if (p.injuries.isNotBlank()) appendLine("Injuries / limitations: ${p.injuries}")
+        if (p.units == UnitSystem.IMPERIAL) {
+            appendLine("Preferred units: pounds, feet and inches. Use them in anything you write for the user (the numbers above are metric).")
+        }
     }.trim()
 
     val MEAL_SCHEMA = """

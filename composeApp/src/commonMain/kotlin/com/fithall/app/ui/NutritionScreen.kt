@@ -1,6 +1,7 @@
 package com.fithall.app.ui
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -177,7 +178,7 @@ fun NutritionScreen(state: AppState, viewModel: AppViewModel) {
             }
         }
         items(state.todaysMeals.asReversed(), key = { it.id }) { meal ->
-            MealRow(meal, onDelete = { viewModel.deleteMeal(meal.id) })
+            MealRow(meal, onSave = viewModel::updateMeal, onDelete = { viewModel.deleteMeal(meal.id) })
         }
 
         item {
@@ -228,9 +229,18 @@ private fun MacroBar(label: String, value: Int, target: Int, unit: String, color
 }
 
 @Composable
-private fun MealRow(meal: MealEntry, onDelete: () -> Unit) {
+private fun MealRow(meal: MealEntry, onSave: (MealEntry) -> Unit, onDelete: () -> Unit) {
     val t = meal.analysis.totals
-    Card(Modifier.fillMaxWidth()) {
+    var editing by remember { mutableStateOf(false) }
+    if (editing) {
+        EditMealDialog(
+            entry = meal,
+            onSave = { onSave(it); editing = false },
+            onDelete = { onDelete(); editing = false },
+            onDismiss = { editing = false },
+        )
+    }
+    Card(Modifier.fillMaxWidth().clickable { editing = true }) {
         Row(Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(meal.analysis.mealName, style = MaterialTheme.typography.titleSmall)
@@ -492,9 +502,9 @@ private fun DescribeMealDialog(
 
 @Composable
 private fun AnalysisCard(analysis: MealAnalysis, onLog: (MealAnalysis) -> Unit) {
-    // Let the user drop foods the AI misidentified before logging.
-    var removed by remember(analysis) { mutableStateOf(setOf<Int>()) }
-    val edited = analysis.copy(items = analysis.items.filterIndexed { i, _ -> i !in removed })
+    // Let the user fix portions and drop foods the AI misidentified before logging.
+    var items by remember(analysis) { mutableStateOf(analysis.items.map { EditableItem(it) }) }
+    val edited = analysis.withItems(items)
     val t = edited.totals
 
     Card(Modifier.fillMaxWidth()) {
@@ -505,23 +515,11 @@ private fun AnalysisCard(analysis: MealAnalysis, onLog: (MealAnalysis) -> Unit) 
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.primary,
             )
-            Text("Confidence: ${analysis.confidence}", style = MaterialTheme.typography.labelMedium)
-            analysis.items.forEachIndexed { index, item ->
-                if (index in removed) return@forEachIndexed
-                HorizontalDivider()
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("${item.name} · ${item.portion}", style = MaterialTheme.typography.bodyLarge)
-                        Text(
-                            "${item.calories} kcal · P ${item.proteinG} · C ${item.carbsG} · F ${item.fatG}",
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-                    IconButton(onClick = { removed = removed + index }) {
-                        Icon(Icons.Filled.Delete, contentDescription = "Remove ${item.name}")
-                    }
-                }
-            }
+            Text(
+                "Confidence: ${analysis.confidence} · tap a food to change its portion",
+                style = MaterialTheme.typography.labelMedium,
+            )
+            MealItemsEditor(items) { items = it }
             if (analysis.notes.isNotBlank()) {
                 HorizontalDivider()
                 Text(analysis.notes, style = MaterialTheme.typography.bodySmall)

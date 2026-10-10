@@ -24,6 +24,7 @@ logback = "1.6.5"
 playIntegrity = "1.5.0"
 googleAuth = "1.54.0"
 sqldelight = "2.3.2"
+work = "2.11.2"
 playServicesCodeScanner = "16.1.0"
 materialIconsExtended = "1.7.3"
 
@@ -72,6 +73,7 @@ googleAuth = { module = "com.google.auth:google-auth-library-oauth2-http", versi
 sqldelight-runtime = { module = "app.cash.sqldelight:runtime", version.ref = "sqldelight" }
 sqldelight-androidDriver = { module = "app.cash.sqldelight:android-driver", version.ref = "sqldelight" }
 sqldelight-sqliteDriver = { module = "app.cash.sqldelight:sqlite-driver", version.ref = "sqldelight" }
+androidx-workRuntime = { module = "androidx.work:work-runtime-ktx", version.ref = "work" }
 logback = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
 
 [plugins]

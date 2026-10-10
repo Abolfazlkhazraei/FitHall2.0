@@ -31,6 +31,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fithall.app.ai.AiService
 import com.fithall.app.data.AppRepository
 import com.fithall.app.data.FoodDatabase
+import com.fithall.app.domain.NoReminders
+import com.fithall.app.domain.ReminderScheduler
 import com.fithall.app.data.UnavailableFoodDatabase
 import com.fithall.app.ui.CoachScreen
 import com.fithall.app.ui.ConsentScreen
@@ -56,8 +58,11 @@ fun App(
     foods: FoodDatabase = UnavailableFoodDatabase("Barcode lookup is not available on this platform."),
     privacyPolicyUrl: String = "",
     clearCaches: () -> Unit = {},
+    reminders: ReminderScheduler = NoReminders,
+    /** Start on the Progress tab, e.g. when opened from the check-in reminder. */
+    openProgress: Boolean = false,
 ) {
-    val viewModel = viewModel { AppViewModel(repository, ai, foods, clearCaches) }
+    val viewModel = viewModel { AppViewModel(repository, ai, foods, clearCaches, reminders) }
     val state by viewModel.state.collectAsStateWithLifecycle()
 
     FitHallTheme {
@@ -71,7 +76,7 @@ fun App(
             return@FitHallTheme
         }
 
-        var tab by rememberSaveable { mutableStateOf(Tab.NUTRITION) }
+        var tab by rememberSaveable { mutableStateOf(if (openProgress) Tab.PROGRESS else Tab.NUTRITION) }
         val snackbar = remember { SnackbarHostState() }
         LaunchedEffect(state.error) {
             state.error?.let {
@@ -104,7 +109,7 @@ fun App(
                     Tab.WORKOUTS -> WorkoutScreen(state, viewModel)
                     Tab.PROGRESS -> ProgressScreen(state, viewModel)
                     Tab.COACH -> CoachScreen(state, viewModel)
-                    Tab.PROFILE -> ProfileScreen(profile, state.adjustment, privacyPolicyUrl, viewModel)
+                    Tab.PROFILE -> ProfileScreen(profile, state.adjustment, state.checkInReminders, privacyPolicyUrl, viewModel)
                 }
             }
         }

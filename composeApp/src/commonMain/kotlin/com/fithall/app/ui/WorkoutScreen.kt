@@ -43,7 +43,7 @@ fun WorkoutScreen(state: AppState, viewModel: AppViewModel) {
     val plan = state.workoutPlan
     val profile = state.profile ?: return
     state.activeWorkout?.let { session ->
-        ActiveWorkoutScreen(session, state.workoutLogs, viewModel)
+        ActiveWorkoutScreen(session, state.workoutLogs, profile.units, viewModel)
         return
     }
 

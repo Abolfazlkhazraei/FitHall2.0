@@ -14,6 +14,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 
 /** Minimal persistent string storage; each platform provides its own. */
@@ -82,6 +83,16 @@ class AppRepository(
         get() = read(KEY_CONSENT, PrivacyConsent.serializer())
         set(value) = write(KEY_CONSENT, PrivacyConsent.serializer(), value)
 
+    /** The user's opt-in for "weekly check-in is ready" notifications. */
+    var checkInReminders: Boolean
+        get() = read(KEY_REMINDERS, Boolean.serializer()) ?: false
+        set(value) = write(KEY_REMINDERS, Boolean.serializer(), value)
+
+    /** Which check-in period the last reminder was for, so each period gets at most one. */
+    var lastReminderKey: String?
+        get() = read(KEY_LAST_REMINDER, String.serializer())
+        set(value) = write(KEY_LAST_REMINDER, String.serializer(), value)
+
     /** Deletes everything FitHall stores on this device. */
     fun clearAll() {
         history.clearAll()
@@ -147,6 +158,8 @@ class AppRepository(
         const val KEY_ACTIVE_WORKOUT = "active_workout"
         const val KEY_TARGET_ADJUSTMENT = "target_adjustment"
         const val KEY_CONSENT = "privacy_consent"
+        const val KEY_REMINDERS = "checkin_reminders"
+        const val KEY_LAST_REMINDER = "last_reminder_key"
 
         // Legacy list keys, read only by the one-time migration.
         const val KEY_MEALS = "meals"

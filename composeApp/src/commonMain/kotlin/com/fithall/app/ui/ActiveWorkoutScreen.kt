@@ -46,12 +46,15 @@ import com.fithall.app.AppViewModel
 import com.fithall.app.domain.ProgressCalculator
 import com.fithall.app.model.ExerciseLog
 import com.fithall.app.model.SetLog
+import com.fithall.app.model.UnitSystem
+import com.fithall.app.model.Units
 import com.fithall.app.model.WorkoutLog
+import kotlin.math.abs
 import com.fithall.app.platform.nowMillis
 import kotlinx.coroutines.delay
 
 @Composable
-fun ActiveWorkoutScreen(session: WorkoutLog, history: List<WorkoutLog>, viewModel: AppViewModel) {
+fun ActiveWorkoutScreen(session: WorkoutLog, history: List<WorkoutLog>, units: UnitSystem, viewModel: AppViewModel) {
     var now by remember { mutableLongStateOf(nowMillis()) }
     LaunchedEffect(Unit) {
         while (true) {
@@ -110,6 +113,7 @@ fun ActiveWorkoutScreen(session: WorkoutLog, history: List<WorkoutLog>, viewMode
             itemsIndexed(session.exercises, key = { i, ex -> "$i-${ex.name}" }) { exIndex, exercise ->
                 ExerciseCard(
                     exercise = exercise,
+                    units = units,
                     lastTime = remember(history, exercise.name) { ProgressCalculator.lastSets(history, exercise.name) },
                     onSetChange = { setIndex, transform -> viewModel.updateSet(exIndex, setIndex, transform) },
                     onSetCompleted = { if (exercise.restSeconds > 0) restEndsAt = nowMillis() + exercise.restSeconds * 1000L },
@@ -166,6 +170,7 @@ fun ActiveWorkoutScreen(session: WorkoutLog, history: List<WorkoutLog>, viewMode
 @Composable
 private fun ExerciseCard(
     exercise: ExerciseLog,
+    units: UnitSystem,
     lastTime: List<SetLog>?,
     onSetChange: (Int, (SetLog) -> SetLog) -> Unit,
     onSetCompleted: () -> Unit,
@@ -186,7 +191,7 @@ private fun ExerciseCard(
                     if (lastTime != null) {
                         Text(
                             "Last time: " + lastTime.joinToString(", ") { s ->
-                                s.weightKg?.takeIf { it > 0 }?.let { kg -> "${formatNumber(kg)}×${s.reps}" } ?: "${s.reps}"
+                                formatSet(s.weightKg, s.reps, units)
                             },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.primary,
@@ -197,7 +202,7 @@ private fun ExerciseCard(
             }
             Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Set", style = MaterialTheme.typography.labelMedium, modifier = Modifier.width(36.dp))
-                Text("kg", style = MaterialTheme.typography.labelMedium, modifier = Modifier.weight(1f))
+                Text(Units.weightUnit(units), style = MaterialTheme.typography.labelMedium, modifier = Modifier.weight(1f))
                 Spacer(Modifier.width(8.dp))
                 Text("Reps", style = MaterialTheme.typography.labelMedium, modifier = Modifier.weight(1f))
                 Text("Done", style = MaterialTheme.typography.labelMedium, modifier = Modifier.width(48.dp))
@@ -207,9 +212,9 @@ private fun ExerciseCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("${setIndex + 1}", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.width(36.dp))
                     NumberCell(
-                        value = set.weightKg,
+                        value = set.weightKg?.let { Units.kgToDisplay(it, units) },
                         decimal = true,
-                        onValue = { kg -> onSetChange(setIndex) { it.copy(weightKg = kg) } },
+                        onValue = { shown -> onSetChange(setIndex) { it.copy(weightKg = shown?.let { v -> Units.displayToKg(v, units) }) } },
                         modifier = Modifier.weight(1f),
                     )
                     Spacer(Modifier.width(8.dp))
@@ -252,7 +257,11 @@ private fun NumberCell(value: Double?, decimal: Boolean, onValue: (Double?) -> U
     fun parse(text: String) = text.replace(',', '.').toDoubleOrNull()
 
     var text by remember { mutableStateOf(format(value)) }
-    LaunchedEffect(value) { if (parse(text) != value) text = format(value) }
+    LaunchedEffect(value) {
+        val typed = parse(text)
+        val same = (typed == null && value == null) || (typed != null && value != null && abs(typed - value) < 0.05)
+        if (!same) text = format(value)
+    }
 
     OutlinedTextField(
         value = text,

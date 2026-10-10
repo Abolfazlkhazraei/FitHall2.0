@@ -5,7 +5,9 @@ macros, get a workout plan and a meal
 plan generated for your level, activity and goal, log your sessions set by set, track body
 weight and strength progress, and chat with an AI coach that knows your profile, today's meals,
 your plans and your recent training. Every week an AI check-in reviews your progress and proposes
-calorie and training changes you can accept with one tap. AI is powered by Claude (`claude-opus-5-5`).
+calorie and training changes you can accept with one tap, with an optional reminder notification
+when it's ready. Portions can be corrected on any food, and the app works in metric or imperial
+units (everything is stored in kg and cm). AI is powered by Claude (`claude-opus-5-5`).
 
 ## Setup
 
@@ -203,6 +205,9 @@ These override the user's choices and anything the AI suggests (`shared/.../mode
 | Calorie & macro targets (Mifflin-St Jeor, deterministic) | `commonMain/.../domain/MacroCalculator.kt` |
 | Workout stats, streaks, estimated 1RM, set prefill | `commonMain/.../domain/ProgressCalculator.kt` |
 | Weekly check-in: weight trend, adherence, stalled lifts, bounded changes | `commonMain/.../domain/CheckInCalculator.kt` |
+| Portion editing (scales macros from the original estimate) | `commonMain/.../domain/Portions.kt`, `ui/MealEditor.kt` |
+| Metric / imperial conversions | `shared/.../model/Units.kt`, `ui/UnitFormat.kt` |
+| Check-in reminder (decision logic; WorkManager job and notification on Android) | `commonMain/.../domain/CheckInReminder.kt`, `androidMain/.../platform/Reminders.android.kt` |
 | Barcode lookup (Open Food Facts) and portion math | `commonMain/.../data/FoodDatabase.kt`, `androidMain/.../data/OpenFoodFactsDatabase.kt` |
 | Voice input and barcode scanner (Android) | `androidMain/.../platform/FoodInput.android.kt` |
 | On-device storage: history in SQLite (SQLDelight), single values in SharedPreferences | `commonMain/.../data/HistoryStore.kt`, `AppRepository.kt`, `src/commonMain/sqldelight/` |

@@ -42,3 +42,11 @@ actual fun rememberFileExporter(): FileExporter = remember {
         override fun export(fileName: String, mimeType: String, content: String) = Unit
     }
 }
+
+@Composable
+actual fun rememberNotificationPermission(): NotificationPermission = remember {
+    object : NotificationPermission {
+        override val isSupported = false
+        override fun request(onResult: (Boolean) -> Unit) = onResult(false)
+    }
+}
