@@ -192,6 +192,9 @@ fun NutritionScreen(state: AppState, viewModel: AppViewModel) {
                 }
             }
         }
+        state.nutritionPlanFailure?.let { failure ->
+            item { ErrorCard(failure, onRetry = viewModel::generateNutritionPlan, onDismiss = viewModel::dismissFailures) }
+        }
         item { NutritionPlanSection(state) }
     }
 }
@@ -283,17 +286,6 @@ private fun NutritionPlanSection(state: AppState) {
                     plan.tips.forEach { Text("• $it", style = MaterialTheme.typography.bodyMedium) }
                 }
             }
-        }
-    }
-}
-
-@Composable
-fun LoadingCard(text: String) {
-    Card(Modifier.fillMaxWidth()) {
-        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 3.dp)
-            Spacer(Modifier.width(16.dp))
-            Text(text, style = MaterialTheme.typography.bodyMedium)
         }
     }
 }

@@ -237,6 +237,7 @@ private fun AiException.toApiException(): ApiException = when (kind) {
     AiErrorKind.INVALID_REQUEST -> ApiException(HttpStatusCode.BadRequest, ErrorCodes.INVALID_REQUEST, message ?: "Invalid request.")
     AiErrorKind.REFUSED -> ApiException(HttpStatusCode.UnprocessableEntity, ErrorCodes.REFUSED, message ?: "The AI declined this request.")
     AiErrorKind.RATE_LIMITED -> ApiException(HttpStatusCode.ServiceUnavailable, ErrorCodes.SERVICE_BUSY, message ?: "The AI is busy.", 30)
+    AiErrorKind.DAILY_LIMIT -> ApiException(HttpStatusCode.TooManyRequests, ErrorCodes.DAILY_LIMIT, message ?: "Daily limit reached.")
     AiErrorKind.CONFIGURATION -> {
         log.error("AI configuration error: {}", message, this)
         ApiException(HttpStatusCode.ServiceUnavailable, ErrorCodes.SERVICE_BUSY, "The AI service isn't available right now.")

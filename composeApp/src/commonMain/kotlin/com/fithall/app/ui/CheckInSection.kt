@@ -42,8 +42,10 @@ import com.fithall.app.model.WeeklyCheckIn
 @Composable
 fun CheckInSection(state: AppState, viewModel: AppViewModel) {
     val pending = state.pendingCheckIn
+    val failure = state.checkInFailure
     when {
         state.runningCheckIn -> LoadingCard("Your coach is reviewing your week…")
+        failure != null -> ErrorCard(failure, onRetry = viewModel::runCheckIn, onDismiss = viewModel::dismissFailures)
         pending != null -> PendingCheckInCard(pending, state, viewModel)
         state.checkInDue -> DueCard(onRun = viewModel::runCheckIn)
         else -> LatestCheckInCard(state, onRun = viewModel::runCheckIn)

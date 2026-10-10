@@ -152,7 +152,8 @@ class BackendAiService(
     private suspend fun HttpResponse.toAiException(): AiException {
         val error = runCatching { body<ApiError>() }.getOrNull()
         val kind = when (error?.code) {
-            ErrorCodes.RATE_LIMITED, ErrorCodes.DAILY_LIMIT, ErrorCodes.SERVICE_BUSY -> AiErrorKind.RATE_LIMITED
+            ErrorCodes.DAILY_LIMIT -> AiErrorKind.DAILY_LIMIT
+            ErrorCodes.RATE_LIMITED, ErrorCodes.SERVICE_BUSY -> AiErrorKind.RATE_LIMITED
             ErrorCodes.REFUSED -> AiErrorKind.REFUSED
             ErrorCodes.INVALID_REQUEST, ErrorCodes.PAYLOAD_TOO_LARGE, ErrorCodes.INTEGRITY_FAILED -> AiErrorKind.INVALID_REQUEST
             else -> AiErrorKind.UNAVAILABLE

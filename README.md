@@ -7,7 +7,8 @@ weight and strength progress, and chat with an AI coach that knows your profile,
 your plans and your recent training. Every week an AI check-in reviews your progress and proposes
 calorie and training changes you can accept with one tap, with an optional reminder notification
 when it's ready. Portions can be corrected on any food, and the app works in metric or imperial
-units (everything is stored in kg and cm). AI is powered by Claude (`claude-opus-5-5`).
+units (everything is stored in kg and cm). Without a connection, logging keeps working, an
+offline banner appears, and AI requests fail straight away with a Retry instead of timing out. AI is powered by Claude (`claude-opus-5-5`).
 
 ## Setup
 

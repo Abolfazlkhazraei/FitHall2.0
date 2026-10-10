@@ -93,6 +93,15 @@ fun CoachScreen(state: AppState, viewModel: AppViewModel) {
             }
             items(state.chat) { Bubble(it) }
             if (state.coachTyping) item { Bubble(ChatMessage(ChatRole.ASSISTANT, "…")) }
+            state.coachFailure?.takeIf { !state.coachTyping }?.let { failure ->
+                item {
+                    ErrorCard(
+                        failure.copy(message = "Your coach couldn't reply. ${failure.message}"),
+                        onRetry = viewModel::retryCoachReply,
+                        onDismiss = viewModel::dismissFailures,
+                    )
+                }
+            }
         }
 
         if (state.chat.isEmpty()) {

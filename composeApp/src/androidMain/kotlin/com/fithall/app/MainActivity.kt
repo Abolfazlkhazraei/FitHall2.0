@@ -12,6 +12,7 @@ import com.fithall.app.data.AppRepository
 import com.fithall.app.data.SqlHistoryStore
 import com.fithall.app.db.FitHallDatabase
 import com.fithall.app.data.OpenFoodFactsDatabase
+import com.fithall.app.platform.AndroidConnectivity
 import com.fithall.app.platform.AndroidReminderScheduler
 import com.fithall.app.platform.DATABASE_NAME
 import com.fithall.app.platform.SharedPreferencesStore
@@ -40,6 +41,7 @@ class MainActivity : ComponentActivity() {
                 clearCaches = { clearAppCaches(applicationContext) },
                 reminders = AndroidReminderScheduler(applicationContext),
                 openProgress = intent?.getStringExtra(EXTRA_OPEN) == OPEN_PROGRESS,
+                connectivity = AndroidConnectivity.get(applicationContext),
             )
         }
     }

@@ -1,6 +1,7 @@
 package com.fithall.app
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
@@ -37,6 +38,7 @@ import com.fithall.app.data.UnavailableFoodDatabase
 import com.fithall.app.ui.CoachScreen
 import com.fithall.app.ui.ConsentScreen
 import com.fithall.app.ui.FitHallTheme
+import com.fithall.app.ui.OfflineBanner
 import com.fithall.app.ui.NutritionScreen
 import com.fithall.app.ui.OnboardingScreen
 import com.fithall.app.ui.ProfileScreen
@@ -61,9 +63,11 @@ fun App(
     reminders: ReminderScheduler = NoReminders,
     /** Start on the Progress tab, e.g. when opened from the check-in reminder. */
     openProgress: Boolean = false,
+    connectivity: Connectivity = AlwaysOnline,
 ) {
-    val viewModel = viewModel { AppViewModel(repository, ai, foods, clearCaches, reminders) }
+    val viewModel = viewModel { AppViewModel(repository, ai, foods, clearCaches, reminders, connectivity) }
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val online by connectivity.isOnline.collectAsStateWithLifecycle()
 
     FitHallTheme {
         if (state.needsConsent) {
@@ -103,13 +107,16 @@ fun App(
                 }
             },
         ) { padding ->
-            Box(Modifier.padding(padding)) {
+            Column(Modifier.padding(padding)) {
+                if (!online) OfflineBanner()
+                Box(Modifier.weight(1f)) {
                 when (tab) {
                     Tab.NUTRITION -> NutritionScreen(state, viewModel)
                     Tab.WORKOUTS -> WorkoutScreen(state, viewModel)
                     Tab.PROGRESS -> ProgressScreen(state, viewModel)
                     Tab.COACH -> CoachScreen(state, viewModel)
                     Tab.PROFILE -> ProfileScreen(profile, state.adjustment, state.checkInReminders, privacyPolicyUrl, viewModel)
+                }
                 }
             }
         }

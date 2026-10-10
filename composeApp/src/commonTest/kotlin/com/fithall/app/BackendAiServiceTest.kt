@@ -92,7 +92,7 @@ class BackendAiServiceTest {
             )
         }
         val e = assertFailsWith<AiException> { ai.analyzeMealDescription("toast") }
-        assertEquals(AiErrorKind.RATE_LIMITED, e.kind)
+        assertEquals(AiErrorKind.DAILY_LIMIT, e.kind)
         assertEquals("You've used today's AI allowance. It resets at midnight UTC.", e.message)
     }
 

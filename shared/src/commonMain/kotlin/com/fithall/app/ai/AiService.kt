@@ -33,8 +33,10 @@ interface AiService {
 enum class AiErrorKind {
     /** The request itself was invalid; retrying won't help. */
     INVALID_REQUEST,
-    /** Too many requests, or a usage limit was reached. */
+    /** Too many requests right now; trying again shortly may work. */
     RATE_LIMITED,
+    /** Today's allowance is used up; it resets the next day. */
+    DAILY_LIMIT,
     /** The model declined the request. */
     REFUSED,
     /** The AI service failed or returned something unusable; retrying may help. */

@@ -2,6 +2,7 @@ package com.fithall.app
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.fithall.app.ai.AiErrorKind
 import com.fithall.app.ai.AiException
 import com.fithall.app.ai.AiPrompts
 import com.fithall.app.ai.AiService
@@ -83,6 +84,12 @@ data class AppState(
     val generatingNutrition: Boolean = false,
     val coachTyping: Boolean = false,
     val runningCheckIn: Boolean = false,
+    /** Inline failures, shown where the request was made, with a Retry when it can help. */
+    val workoutPlanFailure: AiFailure? = null,
+    val nutritionPlanFailure: AiFailure? = null,
+    val checkInFailure: AiFailure? = null,
+    val coachFailure: AiFailure? = null,
+    /** Short notices for the snackbar. */
     val error: String? = null,
 ) {
     /** True until the user accepts the current privacy policy version. */
@@ -107,6 +114,7 @@ class AppViewModel(
     /** Deletes the platform's temporary files (cached photos, exports) when the user deletes their data. */
     private val clearCaches: () -> Unit = {},
     private val reminders: ReminderScheduler = NoReminders,
+    private val connectivity: Connectivity = AlwaysOnline,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(
@@ -192,7 +200,7 @@ class AppViewModel(
                 it.copy(
                     scan = result.fold(
                         onSuccess = { analysis -> ScanState.Result(source, analysis) },
-                        onFailure = { e -> ScanState.Failed(source, e.userMessage()) },
+                        onFailure = { e -> ScanState.Failed(source, failure(e).message) },
                     )
                 )
             }
@@ -233,7 +241,10 @@ class AppViewModel(
                             if (product != null) ScanState.ProductFound(product)
                             else ScanState.Failed(source, "This product isn't in the Open Food Facts database yet. Describe it instead, or snap a photo of it.")
                         },
-                        onFailure = { ScanState.Failed(source, "Couldn't look up the barcode. Check your internet connection and try again.") },
+                        onFailure = {
+                            val message = if (connectivity.isOnline.value) "Couldn't look up the barcode. Please try again." else ErrorMessages.OFFLINE
+                            ScanState.Failed(source, message)
+                        },
                     )
                 )
             }
@@ -274,7 +285,7 @@ class AppViewModel(
     fun generateWorkoutPlan() {
         val profile = _state.value.profile ?: return
         if (_state.value.generatingWorkout) return
-        _state.update { it.copy(generatingWorkout = true) }
+        _state.update { it.copy(generatingWorkout = true, workoutPlanFailure = null) }
         viewModelScope.launch {
             val history = ProgressCalculator.historySummary(_state.value.workoutLogs)
             runAi { ai.generateWorkoutPlan(profile, history) }
@@ -282,7 +293,7 @@ class AppViewModel(
                     repository.workoutPlan = plan
                     _state.update { it.copy(workoutPlan = plan) }
                 }
-                .onFailure { e -> _state.update { it.copy(error = e.userMessage()) } }
+                .onFailure { e -> _state.update { it.copy(workoutPlanFailure = failure(e)) } }
             _state.update { it.copy(generatingWorkout = false) }
         }
     }
@@ -291,14 +302,14 @@ class AppViewModel(
         val profile = _state.value.profile ?: return
         val targets = _state.value.targets ?: return
         if (_state.value.generatingNutrition) return
-        _state.update { it.copy(generatingNutrition = true) }
+        _state.update { it.copy(generatingNutrition = true, nutritionPlanFailure = null) }
         viewModelScope.launch {
             runAi { ai.generateNutritionPlan(profile, targets) }
                 .onSuccess { plan ->
                     repository.nutritionPlan = plan
                     _state.update { it.copy(nutritionPlan = plan) }
                 }
-                .onFailure { e -> _state.update { it.copy(error = e.userMessage()) } }
+                .onFailure { e -> _state.update { it.copy(nutritionPlanFailure = failure(e)) } }
             _state.update { it.copy(generatingNutrition = false) }
         }
     }
@@ -413,7 +424,7 @@ class AppViewModel(
         val profile = s.profile ?: return
         val targets = s.targets ?: return
         if (s.runningCheckIn) return
-        _state.update { it.copy(runningCheckIn = true) }
+        _state.update { it.copy(runningCheckIn = true, checkInFailure = null) }
         val today = todayKey()
         val report = CheckInCalculator.buildReport(
             profile = profile,
@@ -440,7 +451,7 @@ class AppViewModel(
                     }
                     _state.update { s -> s.copy(checkIns = s.checkIns.replaceAll(superseded) + created) }
                 }
-                .onFailure { e -> _state.update { it.copy(error = e.userMessage()) } }
+                .onFailure { e -> _state.update { it.copy(checkInFailure = failure(e)) } }
             _state.update { it.copy(runningCheckIn = false) }
         }
     }
@@ -514,9 +525,20 @@ class AppViewModel(
         val trimmed = text.trim()
         if (trimmed.isEmpty() || _state.value.coachTyping) return
         val message = ChatMessage(ChatRole.USER, trimmed)
-        val history = _state.value.chat + message
         repository.history.appendChat(message)
-        _state.update { it.copy(chat = history, coachTyping = true) }
+        _state.update { it.copy(chat = it.chat + message) }
+        requestCoachReply()
+    }
+
+    /** Asks again for a reply to the last, unanswered message. */
+    fun retryCoachReply() {
+        if (_state.value.chat.lastOrNull()?.role == ChatRole.USER) requestCoachReply()
+    }
+
+    private fun requestCoachReply() {
+        if (_state.value.coachTyping) return
+        val history = _state.value.chat
+        _state.update { it.copy(coachTyping = true, coachFailure = null) }
         viewModelScope.launch {
             runAi { ai.coachReply(coachContext(_state.value), history.takeLast(MAX_CHAT_TURNS)) }
                 .onSuccess { reply ->
@@ -524,9 +546,13 @@ class AppViewModel(
                     repository.history.appendChat(answer)
                     _state.update { it.copy(chat = it.chat + answer) }
                 }
-                .onFailure { e -> _state.update { it.copy(error = e.userMessage()) } }
+                .onFailure { e -> _state.update { it.copy(coachFailure = failure(e)) } }
             _state.update { it.copy(coachTyping = false) }
         }
+    }
+
+    fun dismissFailures() = _state.update {
+        it.copy(workoutPlanFailure = null, nutritionPlanFailure = null, checkInFailure = null, coachFailure = null)
     }
 
     fun clearChat() {
@@ -580,17 +606,21 @@ class AppViewModel(
     private inline fun <T> List<T>.mapAt(index: Int, transform: (T) -> T): List<T> =
         mapIndexed { i, item -> if (i == index) transform(item) else item }
 
-    private suspend fun <T> runAi(block: suspend () -> T): Result<T> = try {
-        Result.success(block())
-    } catch (e: CancellationException) {
-        throw e
-    } catch (e: Exception) {
-        Result.failure(e)
+    /** Runs an AI or network call; fails straight away when the device is offline. */
+    private suspend fun <T> runAi(block: suspend () -> T): Result<T> {
+        if (!connectivity.isOnline.value) {
+            return Result.failure(AiException(ErrorMessages.OFFLINE, AiErrorKind.NETWORK))
+        }
+        return try {
+            Result.success(block())
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 
-    private fun Throwable.userMessage(): String =
-        if (this is AiException) message ?: "Something went wrong."
-        else "Something went wrong: ${message ?: this::class.simpleName}"
+    private fun failure(e: Throwable): AiFailure = ErrorMessages.forFailure(e, connectivity.isOnline.value)
 
     private companion object {
         const val MAX_CHAT_TURNS = 30

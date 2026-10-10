@@ -62,6 +62,10 @@ fun WorkoutScreen(state: AppState, viewModel: AppViewModel) {
             )
         }
 
+        // Above the plan rather than instead of it, so a failed regeneration doesn't hide the current plan.
+        state.workoutPlanFailure?.takeIf { !state.generatingWorkout }?.let { failure ->
+            item { ErrorCard(failure, onRetry = viewModel::generateWorkoutPlan, onDismiss = viewModel::dismissFailures) }
+        }
         when {
             state.generatingWorkout -> item {
                 LoadingCard("Your AI coach is designing a plan for your level and goal. This can take up to a minute…")
