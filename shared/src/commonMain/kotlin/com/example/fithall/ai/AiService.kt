@@ -9,8 +9,8 @@ import com.example.fithall.model.UserProfile
 import com.example.fithall.model.WorkoutPlan
 
 /**
- * Everything the app asks of the AI. The UI depends only on this interface, so the direct
- * Claude implementation can later be swapped for one that calls your own backend.
+ * Everything the app asks of the AI. The app implements it by calling the FitHall server
+ * (BackendAiService); the server implements it by calling Claude (ClaudeAiService).
  */
 interface AiService {
     suspend fun analyzeMeal(jpegBytes: ByteArray, userNote: String): MealAnalysis
@@ -30,7 +30,27 @@ interface AiService {
     suspend fun weeklyCheckIn(report: String): CheckInResult
 }
 
-class AiException(message: String, cause: Throwable? = null) : Exception(message, cause)
+enum class AiErrorKind {
+    /** The request itself was invalid; retrying won't help. */
+    INVALID_REQUEST,
+    /** Too many requests, or a usage limit was reached. */
+    RATE_LIMITED,
+    /** The model declined the request. */
+    REFUSED,
+    /** The AI service failed or returned something unusable; retrying may help. */
+    UNAVAILABLE,
+    /** Credentials or configuration are wrong. Server-side only: never shown verbatim to users. */
+    CONFIGURATION,
+    /** The device couldn't reach the server. */
+    NETWORK,
+}
+
+/** [message] is safe to show to the user, except for [AiErrorKind.CONFIGURATION]. */
+class AiException(
+    message: String,
+    val kind: AiErrorKind = AiErrorKind.UNAVAILABLE,
+    cause: Throwable? = null,
+) : Exception(message, cause)
 
 /** Used on platforms that don't have an AI client wired up yet. */
 class UnavailableAiService(private val reason: String) : AiService {

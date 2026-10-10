@@ -121,7 +121,7 @@ object ProgressCalculator {
                 .filter { ex -> ex.sets.any { it.completed } }
                 .joinToString("; ") { ex ->
                     ex.name + " " + ex.sets.filter { it.completed }.joinToString(", ") { s ->
-                        if (s.weightKg != null && s.weightKg > 0) "${formatNumber(s.weightKg)}kg x ${s.reps}" else "${s.reps} reps"
+                        s.weightKg?.takeIf { it > 0 }?.let { kg -> "${formatNumber(kg)}kg x ${s.reps}" } ?: "${s.reps} reps"
                     }
                 }
         }

@@ -1,0 +1,3 @@
+# Only the prebuilt server jar is needed in the image.
+*
+!server/build/libs/fithall-server.jar

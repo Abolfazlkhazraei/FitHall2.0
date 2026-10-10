@@ -186,7 +186,7 @@ private fun ExerciseCard(
                     if (lastTime != null) {
                         Text(
                             "Last time: " + lastTime.joinToString(", ") { s ->
-                                if (s.weightKg != null && s.weightKg > 0) "${formatNumber(s.weightKg)}×${s.reps}" else "${s.reps}"
+                                s.weightKg?.takeIf { it > 0 }?.let { kg -> "${formatNumber(kg)}×${s.reps}" } ?: "${s.reps}"
                             },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.primary,

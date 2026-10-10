@@ -11,13 +11,13 @@ plugins {
     alias(libs.plugins.kotlinSerialization)
 }
 
-// Development only: the key is read from local.properties (never committed) and baked into
-// the debug build. Before release, route AI calls through your own backend instead.
+// The app talks only to the FitHall server, which holds the Anthropic key. Set BACKEND_URL in
+// local.properties; the default reaches a server running on your computer from the Android emulator.
 val localProperties = Properties().apply {
     val file = rootProject.file("local.properties")
     if (file.exists()) file.inputStream().use { load(it) }
 }
-val anthropicApiKey: String = localProperties.getProperty("ANTHROPIC_API_KEY") ?: ""
+val backendUrl: String = localProperties.getProperty("BACKEND_URL") ?: "http://10.0.2.2:8080"
 
 kotlin {
     androidTarget {
@@ -42,8 +42,8 @@ kotlin {
         androidMain.dependencies {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.androidx.activity.compose)
-            implementation(libs.anthropic.java)
             implementation(libs.okhttp)
+            implementation(libs.ktor.clientOkhttp)
             implementation(libs.playServices.codeScanner)
         }
         commonMain.dependencies {
@@ -59,14 +59,23 @@ kotlin {
             implementation(libs.kotlinx.coroutinesCore)
             implementation(libs.kotlinx.serializationJson)
             implementation(libs.kotlinx.datetime)
+            implementation(projects.shared)
+            implementation(libs.ktor.clientCore)
+            implementation(libs.ktor.clientContentNegotiation)
+            implementation(libs.ktor.serializationJson)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
             implementation(libs.kotlinx.coroutinesTest)
+            implementation(libs.ktor.clientMock)
+        }
+        iosMain.dependencies {
+            implementation(libs.ktor.clientDarwin)
         }
         jvmMain.dependencies {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutinesSwing)
+            implementation(libs.ktor.clientOkhttp)
         }
     }
 }
@@ -81,7 +90,7 @@ android {
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1
         versionName = "1.0"
-        buildConfigField("String", "ANTHROPIC_API_KEY", "\"$anthropicApiKey\"")
+        buildConfigField("String", "BACKEND_URL", "\"$backendUrl\"")
     }
     buildFeatures {
         buildConfig = true

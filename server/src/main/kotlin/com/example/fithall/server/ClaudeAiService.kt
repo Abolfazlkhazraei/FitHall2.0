@@ -1,4 +1,4 @@
-package com.example.fithall.ai
+package com.example.fithall.server
 
 import com.anthropic.client.AnthropicClient
 import com.anthropic.client.okhttp.AnthropicOkHttpClient
@@ -17,6 +17,10 @@ import com.anthropic.models.messages.Message
 import com.anthropic.models.messages.MessageCreateParams
 import com.anthropic.models.messages.OutputConfig
 import com.anthropic.models.messages.StopReason
+import com.example.fithall.ai.AiErrorKind
+import com.example.fithall.ai.AiException
+import com.example.fithall.ai.AiPrompts
+import com.example.fithall.ai.AiService
 import com.example.fithall.model.ChatMessage
 import com.example.fithall.model.ChatRole
 import com.example.fithall.model.CheckInResult
@@ -40,11 +44,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.longOrNull
 import java.util.Base64
 
-/**
- * Calls the Claude API directly from the device. Development only: the API key ships inside the
- * APK, so before release move these calls behind your own backend and implement [AiService]
- * against that instead.
- */
+/** Implements the app's AI features with the Claude API. Runs on the server, which holds the key. */
 class ClaudeAiService(apiKey: String) : AiService {
 
     private val client: AnthropicClient = AnthropicOkHttpClient.builder()
@@ -141,26 +141,26 @@ class ClaudeAiService(apiKey: String) : AiService {
         val message: Message = try {
             client.messages().create(params)
         } catch (e: UnauthorizedException) {
-            throw AiException("The Anthropic API key is invalid. Check ANTHROPIC_API_KEY in local.properties.", e)
+            throw AiException("The Anthropic API key is invalid. Check ANTHROPIC_API_KEY.", AiErrorKind.CONFIGURATION, e)
         } catch (e: PermissionDeniedException) {
-            throw AiException("This API key doesn't have access to $MODEL.", e)
+            throw AiException("The Anthropic API key doesn't have access to $MODEL.", AiErrorKind.CONFIGURATION, e)
         } catch (e: RateLimitException) {
-            throw AiException("Too many requests right now. Please wait a moment and try again.", e)
+            throw AiException("The AI service is busy right now. Please try again in a minute.", AiErrorKind.RATE_LIMITED, e)
         } catch (e: InternalServerException) {
-            throw AiException("The AI service is having trouble. Please try again shortly.", e)
+            throw AiException("The AI service is having trouble. Please try again shortly.", AiErrorKind.UNAVAILABLE, e)
         } catch (e: BadRequestException) {
-            throw AiException("The AI request was rejected: ${e.message}", e)
+            throw AiException("The AI couldn't process this request.", AiErrorKind.INVALID_REQUEST, e)
         } catch (e: AnthropicServiceException) {
-            throw AiException("AI error (${e.statusCode()}): ${e.message}", e)
+            throw AiException("The AI service returned an error (${e.statusCode()}). Please try again.", AiErrorKind.UNAVAILABLE, e)
         } catch (e: AnthropicIoException) {
-            throw AiException("Couldn't reach the AI service. Check your internet connection.", e)
+            throw AiException("Couldn't reach the AI service. Please try again.", AiErrorKind.UNAVAILABLE, e)
         }
 
         when (message.stopReason().orElse(null)) {
             StopReason.REFUSAL ->
-                throw AiException("The AI declined this request. Try rephrasing it or using a different photo.")
+                throw AiException("The AI declined this request. Try rephrasing it or using a different photo.", AiErrorKind.REFUSED)
             StopReason.MAX_TOKENS ->
-                throw AiException("The AI response was cut off. Please try again.")
+                throw AiException("The AI response was cut off. Please try again.", AiErrorKind.UNAVAILABLE)
             else -> Unit
         }
         message.content()
@@ -172,7 +172,7 @@ class ClaudeAiService(apiKey: String) : AiService {
     private fun <T> decode(text: String, serializer: KSerializer<T>): T = try {
         json.decodeFromString(serializer, text)
     } catch (e: Exception) {
-        throw AiException("The AI response couldn't be read. Please try again.", e)
+        throw AiException("The AI response couldn't be read. Please try again.", AiErrorKind.UNAVAILABLE, e)
     }
 
     /** kotlinx JSON tree -> plain Kotlin values that the SDK's JsonValue.from understands. */

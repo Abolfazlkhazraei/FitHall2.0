@@ -233,7 +233,7 @@ private fun HistoryCard(log: WorkoutLog, onDelete: () -> Unit) {
                 log.exercises.forEach { ex ->
                     Text(
                         "${ex.name}: " + ex.sets.joinToString(", ") { s ->
-                            if (s.weightKg != null && s.weightKg > 0) "${formatNumber(s.weightKg)}×${s.reps}" else "${s.reps} reps"
+                            s.weightKg?.takeIf { it > 0 }?.let { kg -> "${formatNumber(kg)}×${s.reps}" } ?: "${s.reps} reps"
                         },
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.padding(top = 4.dp, end = 12.dp),
