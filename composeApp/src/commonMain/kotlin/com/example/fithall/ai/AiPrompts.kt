@@ -16,6 +16,15 @@ If the user adds a note (for example "large portion" or "no oil"), treat it as m
 If the photo does not show food, return an empty items list, confidence "low", and explain in the notes.
 Round all numbers to whole units."""
 
+    const val MEAL_TEXT_SYSTEM = """You are a registered dietitian estimating the nutrition of a meal from the user's own description, which may come from speech-to-text and contain transcription mistakes.
+Split the description into distinct foods and drinks. Use the amounts the user gives; when an amount is missing, assume a typical single portion and state the assumption in the portion field (for example "1 medium (approx. 120 g)").
+Include cooking fats, sauces and drinks the user mentions, and estimate calories, protein, carbohydrates and fat using standard nutrition databases.
+Use confidence "high" when amounts are specific, "medium" when you assumed typical portions, and "low" when the description is vague.
+If the text doesn't describe food, return an empty items list, confidence "low", and say so in the notes.
+Round all numbers to whole units."""
+
+    fun mealTextUserText(description: String): String = "What I ate: $description"
+
     fun mealUserText(userNote: String): String =
         if (userNote.isBlank()) "Estimate the macros for this meal."
         else "Estimate the macros for this meal. Note from the user: $userNote"

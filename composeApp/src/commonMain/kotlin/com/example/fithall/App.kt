@@ -30,6 +30,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.fithall.ai.AiService
 import com.example.fithall.data.AppRepository
+import com.example.fithall.data.FoodDatabase
+import com.example.fithall.data.UnavailableFoodDatabase
 import com.example.fithall.ui.CoachScreen
 import com.example.fithall.ui.FitHallTheme
 import com.example.fithall.ui.NutritionScreen
@@ -47,8 +49,12 @@ private enum class Tab(val label: String, val icon: ImageVector) {
 }
 
 @Composable
-fun App(repository: AppRepository, ai: AiService) {
-    val viewModel = viewModel { AppViewModel(repository, ai) }
+fun App(
+    repository: AppRepository,
+    ai: AiService,
+    foods: FoodDatabase = UnavailableFoodDatabase("Barcode lookup is not available on this platform."),
+) {
+    val viewModel = viewModel { AppViewModel(repository, ai, foods) }
     val state by viewModel.state.collectAsStateWithLifecycle()
 
     FitHallTheme {

@@ -8,6 +8,7 @@ import com.example.fithall.ai.AiService
 import com.example.fithall.ai.ClaudeAiService
 import com.example.fithall.ai.UnavailableAiService
 import com.example.fithall.data.AppRepository
+import com.example.fithall.data.OpenFoodFactsDatabase
 import com.example.fithall.platform.SharedPreferencesStore
 
 class MainActivity : ComponentActivity() {
@@ -23,7 +24,7 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            App(repository, ai)
+            App(repository, ai, OpenFoodFactsDatabase())
         }
     }
 }

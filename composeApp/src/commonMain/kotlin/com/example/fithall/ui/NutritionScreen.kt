@@ -55,16 +55,74 @@ import com.example.fithall.model.MacroTargets
 import com.example.fithall.model.MealAnalysis
 import com.example.fithall.model.MealEntry
 import com.example.fithall.platform.rememberMealPhotoLauncher
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.FilterChip
+import androidx.compose.ui.text.input.KeyboardType
+import com.example.fithall.MealSource
+import com.example.fithall.data.PackagedFood
+import com.example.fithall.data.PackagedFoods
+import com.example.fithall.data.PortionUnit
+import com.example.fithall.platform.VoiceInput
+import com.example.fithall.platform.rememberBarcodeScanner
+import com.example.fithall.platform.rememberVoiceInput
 import org.jetbrains.compose.resources.decodeToImageBitmap
 
 @Composable
 fun NutritionScreen(state: AppState, viewModel: AppViewModel) {
     val launcher = rememberMealPhotoLauncher { bytes -> viewModel.analyzeMeal(bytes) }
+    var describing by rememberSaveable { mutableStateOf(false) }
+    var description by rememberSaveable { mutableStateOf("") }
+    var inputError by remember { mutableStateOf<String?>(null) }
+    val voice = rememberVoiceInput(
+        prompt = "Describe what you ate",
+        onText = { spoken ->
+            description = if (description.isBlank()) spoken else "${description.trimEnd()} $spoken"
+            describing = true
+        },
+        onError = { inputError = it },
+    )
+    val barcodeScanner = rememberBarcodeScanner(
+        onBarcode = viewModel::lookupBarcode,
+        onError = { inputError = it },
+    )
+
+    if (describing) {
+        DescribeMealDialog(
+            text = description,
+            onTextChange = { description = it },
+            voice = voice,
+            onAnalyze = {
+                viewModel.analyzeDescription(description)
+                describing = false
+                description = ""
+            },
+            onDismiss = { describing = false },
+        )
+    }
+    inputError?.let { message ->
+        AlertDialog(
+            onDismissRequest = { inputError = null },
+            text = { Text(message) },
+            confirmButton = { TextButton(onClick = { inputError = null }) { Text("OK") } },
+        )
+    }
 
     when (val scan = state.scan) {
         ScanState.Idle -> Unit
         else -> {
-            ScanResultScreen(scan, viewModel)
+            ScanResultScreen(
+                scan, viewModel,
+                onScanAgain = barcodeScanner::scan,
+                onDescribeInstead = {
+                    viewModel.cancelScan()
+                    describing = true
+                },
+            )
             return
         }
     }
@@ -78,16 +136,30 @@ fun NutritionScreen(state: AppState, viewModel: AppViewModel) {
         item { Text("Today", style = MaterialTheme.typography.headlineSmall) }
         item { MacroSummaryCard(eaten = state.todaysTotals, targets = targets) }
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = launcher::takePhoto, enabled = launcher.canTakePhoto, modifier = Modifier.weight(1f)) {
-                    Icon(Icons.Filled.CameraAlt, null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Snap meal")
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = launcher::takePhoto, enabled = launcher.canTakePhoto, modifier = Modifier.weight(1f)) {
+                        Icon(Icons.Filled.CameraAlt, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Snap meal")
+                    }
+                    OutlinedButton(onClick = launcher::pickFromGallery, enabled = launcher.canPickFromGallery, modifier = Modifier.weight(1f)) {
+                        Icon(Icons.Filled.PhotoLibrary, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Gallery")
+                    }
                 }
-                OutlinedButton(onClick = launcher::pickFromGallery, enabled = launcher.canPickFromGallery, modifier = Modifier.weight(1f)) {
-                    Icon(Icons.Filled.PhotoLibrary, null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("From gallery")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { describing = true }, modifier = Modifier.weight(1f)) {
+                        Icon(Icons.Filled.Mic, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Say or type")
+                    }
+                    OutlinedButton(onClick = barcodeScanner::scan, enabled = barcodeScanner.isAvailable, modifier = Modifier.weight(1f)) {
+                        Icon(Icons.Filled.QrCodeScanner, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Barcode")
+                    }
                 }
             }
         }
@@ -96,7 +168,7 @@ fun NutritionScreen(state: AppState, viewModel: AppViewModel) {
         if (state.todaysMeals.isEmpty()) {
             item {
                 Text(
-                    "Nothing logged yet. Take a photo of your plate and the AI will estimate its macros.",
+                    "Nothing logged yet. Snap your plate, say what you ate, or scan a barcode.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -217,15 +289,23 @@ fun LoadingCard(text: String) {
 // ---- Scan result ----
 
 @Composable
-private fun ScanResultScreen(scan: ScanState, viewModel: AppViewModel) {
-    val photo = when (scan) {
-        is ScanState.Analyzing -> scan.photo
-        is ScanState.Result -> scan.photo
-        is ScanState.Failed -> scan.photo
+private fun ScanResultScreen(
+    scan: ScanState,
+    viewModel: AppViewModel,
+    onScanAgain: () -> Unit,
+    onDescribeInstead: () -> Unit,
+) {
+    val source = when (scan) {
+        is ScanState.Analyzing -> scan.source
+        is ScanState.Result -> scan.source
+        is ScanState.Failed -> scan.source
+        is ScanState.ProductFound -> MealSource.Barcode(scan.product.barcode)
         ScanState.Idle -> return
     }
-    val bitmap: ImageBitmap? = remember(photo) { runCatching { photo.decodeToImageBitmap() }.getOrNull() }
-    var note by rememberSaveable { mutableStateOf("") }
+    val photo = (source as? MealSource.Photo)?.jpeg
+    val bitmap: ImageBitmap? = remember(photo) { photo?.let { runCatching { it.decodeToImageBitmap() }.getOrNull() } }
+    // For photos this is a correction note; for descriptions it's the editable description.
+    var input by rememberSaveable(source) { mutableStateOf((source as? MealSource.Description)?.text ?: "") }
 
     LazyColumn(
         Modifier.fillMaxSize(),
@@ -234,7 +314,12 @@ private fun ScanResultScreen(scan: ScanState, viewModel: AppViewModel) {
     ) {
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Meal scan", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
+                val title = when (source) {
+                    is MealSource.Photo -> "Meal scan"
+                    is MealSource.Description -> "Described meal"
+                    is MealSource.Barcode -> "Barcode"
+                }
+                Text(title, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
                 IconButton(onClick = viewModel::cancelScan) { Icon(Icons.Filled.Close, contentDescription = "Cancel") }
             }
         }
@@ -247,25 +332,64 @@ private fun ScanResultScreen(scan: ScanState, viewModel: AppViewModel) {
                 )
             }
         }
-        when (scan) {
-            is ScanState.Analyzing -> item { LoadingCard("Identifying foods and estimating portions…") }
-            is ScanState.Failed -> item {
-                Text(scan.message, color = MaterialTheme.colorScheme.error)
-            }
-            is ScanState.Result -> item { AnalysisCard(scan.analysis, onLog = viewModel::logScannedMeal) }
-            ScanState.Idle -> Unit
+        if (source is MealSource.Description && scan is ScanState.Analyzing) {
+            item { Text("“${source.text}”", style = MaterialTheme.typography.bodyLarge) }
         }
-        if (scan !is ScanState.Analyzing) {
-            item {
-                OutlinedTextField(
-                    note, { note = it },
-                    label = { Text("Add a correction (optional)") },
-                    placeholder = { Text("e.g. 200 g chicken, cooked without oil") },
-                    modifier = Modifier.fillMaxWidth(),
+
+        when (scan) {
+            is ScanState.Analyzing -> item {
+                LoadingCard(
+                    if (source is MealSource.Barcode) "Looking up the product…"
+                    else "Identifying foods and estimating portions…"
                 )
             }
+            is ScanState.Failed -> item { Text(scan.message, color = MaterialTheme.colorScheme.error) }
+            is ScanState.Result -> item { AnalysisCard(scan.analysis, onLog = viewModel::logScannedMeal) }
+            is ScanState.ProductFound -> item { ProductPortionCard(scan.product, onLog = viewModel::logProduct) }
+            ScanState.Idle -> Unit
+        }
+
+        if (source is MealSource.Barcode) {
+            if (scan is ScanState.Failed || scan is ScanState.ProductFound) {
+                item {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = onScanAgain, modifier = Modifier.weight(1f)) {
+                            Icon(Icons.Filled.QrCodeScanner, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Scan again")
+                        }
+                        OutlinedButton(onClick = onDescribeInstead, modifier = Modifier.weight(1f)) {
+                            Icon(Icons.Filled.Mic, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Describe it")
+                        }
+                    }
+                }
+            }
+            if (scan is ScanState.Failed) {
+                item {
+                    TextButton(onClick = { viewModel.retryScan("") }, modifier = Modifier.fillMaxWidth()) { Text("Try the lookup again") }
+                }
+            }
+        } else if (scan !is ScanState.Analyzing) {
             item {
-                FilledTonalButton(onClick = { viewModel.retryScan(note) }, modifier = Modifier.fillMaxWidth()) {
+                if (source is MealSource.Description) {
+                    OutlinedTextField(
+                        input, { input = it },
+                        label = { Text("Edit what you ate") },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                } else {
+                    OutlinedTextField(
+                        input, { input = it },
+                        label = { Text("Add a correction (optional)") },
+                        placeholder = { Text("e.g. 200 g chicken, cooked without oil") },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+            item {
+                FilledTonalButton(onClick = { viewModel.retryScan(input) }, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Filled.Refresh, null)
                     Spacer(Modifier.width(8.dp))
                     Text("Re-analyze")
@@ -273,6 +397,95 @@ private fun ScanResultScreen(scan: ScanState, viewModel: AppViewModel) {
             }
         }
     }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ProductPortionCard(product: PackagedFood, onLog: (PackagedFood, Double, PortionUnit) -> Unit) {
+    var unit by rememberSaveable(product.barcode) {
+        mutableStateOf(if (product.canUseServings) PortionUnit.SERVINGS else PortionUnit.GRAMS)
+    }
+    var amountText by rememberSaveable(product.barcode, unit) {
+        mutableStateOf(if (unit == PortionUnit.SERVINGS) "1" else (product.servingGrams?.let { formatNumber(it) } ?: "100"))
+    }
+    val amount = amountText.replace(',', '.').toDoubleOrNull()?.takeIf { it > 0 && it < 5000 }
+    val preview = amount?.let { PackagedFoods.toMeal(product, it, unit) }?.totals
+
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(product.displayName, style = MaterialTheme.typography.titleLarge)
+            product.per100g?.let {
+                Text(
+                    "Per 100 g: ${formatNumber(it.calories)} kcal · P ${formatNumber(it.proteinG)} · C ${formatNumber(it.carbsG)} · F ${formatNumber(it.fatG)}",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            product.servingLabel?.let { Text("Serving: $it", style = MaterialTheme.typography.bodySmall) }
+
+            if (product.canUseGrams && product.canUseServings) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(unit == PortionUnit.SERVINGS, { unit = PortionUnit.SERVINGS }, label = { Text("Servings") })
+                    FilterChip(unit == PortionUnit.GRAMS, { unit = PortionUnit.GRAMS }, label = { Text("Grams") })
+                }
+            }
+            OutlinedTextField(
+                value = amountText,
+                onValueChange = { new -> amountText = new.filter { it.isDigit() || it == '.' || it == ',' }.take(6) },
+                label = { Text(if (unit == PortionUnit.SERVINGS) "How many servings?" else "How many grams?") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            if (preview != null) {
+                Text(
+                    "${preview.calories} kcal · P ${preview.proteinG} g · C ${preview.carbsG} g · F ${preview.fatG} g",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+            Button(
+                onClick = { amount?.let { onLog(product, it, unit) } },
+                enabled = preview != null,
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("Log this") }
+        }
+    }
+}
+
+@Composable
+private fun DescribeMealDialog(
+    text: String,
+    onTextChange: (String) -> Unit,
+    voice: VoiceInput,
+    onAnalyze: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("What did you eat?") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = onTextChange,
+                    placeholder = { Text("e.g. 2 scrambled eggs, a slice of toast with butter and a latte") },
+                    minLines = 3,
+                    trailingIcon = if (voice.isAvailable) {
+                        { IconButton(onClick = voice::start) { Icon(Icons.Filled.Mic, contentDescription = "Speak") } }
+                    } else null,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text(
+                    if (voice.isAvailable) "Type it or tap the mic and say it. Amounts help, e.g. \"a cup of rice\"."
+                    else "Amounts help, e.g. \"a cup of rice\" or \"150 g chicken\".",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        confirmButton = { TextButton(onClick = onAnalyze, enabled = text.isNotBlank()) { Text("Estimate macros") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }
 
 @Composable

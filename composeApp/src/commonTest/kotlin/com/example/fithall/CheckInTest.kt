@@ -170,6 +170,7 @@ class CheckInTest {
         var lastReport: String? = null
         override suspend fun weeklyCheckIn(report: String): CheckInResult { lastReport = report; return result }
         override suspend fun analyzeMeal(jpegBytes: ByteArray, userNote: String) = error("unused")
+        override suspend fun analyzeMealDescription(description: String) = error("unused")
         override suspend fun generateWorkoutPlan(profile: UserProfile, recentTraining: String) = error("unused")
         override suspend fun generateNutritionPlan(profile: UserProfile, targets: MacroTargets) = error("unused")
         override suspend fun coachReply(context: String, history: List<ChatMessage>) = error("unused")

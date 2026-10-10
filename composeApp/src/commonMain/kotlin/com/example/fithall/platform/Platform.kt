@@ -17,3 +17,21 @@ interface MealPhotoLauncher {
 
 @Composable
 expect fun rememberMealPhotoLauncher(onPhoto: (ByteArray) -> Unit): MealPhotoLauncher
+
+/** Speech-to-text for describing a meal out loud. */
+interface VoiceInput {
+    val isAvailable: Boolean
+    fun start()
+}
+
+@Composable
+expect fun rememberVoiceInput(prompt: String, onText: (String) -> Unit, onError: (String) -> Unit): VoiceInput
+
+/** Scans a product barcode and returns its digits. */
+interface BarcodeScanner {
+    val isAvailable: Boolean
+    fun scan()
+}
+
+@Composable
+expect fun rememberBarcodeScanner(onBarcode: (String) -> Unit, onError: (String) -> Unit): BarcodeScanner

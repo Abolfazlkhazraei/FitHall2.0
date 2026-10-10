@@ -70,6 +70,14 @@ class ClaudeAiService(apiKey: String) : AiService {
         return decode(send(params), MealAnalysis.serializer())
     }
 
+    override suspend fun analyzeMealDescription(description: String): MealAnalysis {
+        val params = baseParams(AiPrompts.MEAL_TEXT_SYSTEM)
+            .outputConfig(structured(AiPrompts.MEAL_SCHEMA, OutputConfig.Effort.MEDIUM))
+            .addUserMessage(AiPrompts.mealTextUserText(description))
+            .build()
+        return decode(send(params), MealAnalysis.serializer())
+    }
+
     override suspend fun generateWorkoutPlan(profile: UserProfile, recentTraining: String): WorkoutPlan {
         val params = baseParams(AiPrompts.WORKOUT_SYSTEM)
             .outputConfig(structured(AiPrompts.WORKOUT_SCHEMA, OutputConfig.Effort.HIGH))

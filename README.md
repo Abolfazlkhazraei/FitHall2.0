@@ -1,6 +1,7 @@
 # FitHall
 
-An AI fitness app: snap a photo of your plate to count its macros, get a workout plan and a meal
+An AI fitness app: snap a photo of your plate, say what you ate, or scan a barcode to count your
+macros, get a workout plan and a meal
 plan generated for your level, activity and goal, log your sessions set by set, track body
 weight and strength progress, and chat with an AI coach that knows your profile, today's meals,
 your plans and your recent training. Every week an AI check-in reviews your progress and proposes
@@ -30,6 +31,8 @@ calorie and training changes you can accept with one tap. AI is powered by Claud
 | Weekly check-in: weight trend, adherence, stalled lifts, bounded changes | `commonMain/.../domain/CheckInCalculator.kt` |
 | AI interface, prompts, JSON schemas | `commonMain/.../ai/` |
 | Claude implementation (Android) | `androidMain/.../ai/ClaudeAiService.kt` |
+| Barcode lookup (Open Food Facts) and portion math | `commonMain/.../data/FoodDatabase.kt`, `androidMain/.../data/OpenFoodFactsDatabase.kt` |
+| Voice input and barcode scanner (Android) | `androidMain/.../platform/FoodInput.android.kt` |
 | On-device storage (SharedPreferences, JSON) | `commonMain/.../data/AppRepository.kt` |
 | Camera / gallery capture | `androidMain/.../platform/Platform.android.kt` |
 | Screens (Nutrition, Workouts + live session, Progress, Coach, Profile) | `commonMain/.../ui/` |

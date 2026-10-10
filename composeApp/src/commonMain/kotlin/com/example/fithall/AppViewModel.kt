@@ -6,6 +6,11 @@ import com.example.fithall.ai.AiException
 import com.example.fithall.ai.AiPrompts
 import com.example.fithall.ai.AiService
 import com.example.fithall.data.AppRepository
+import com.example.fithall.data.FoodDatabase
+import com.example.fithall.data.PackagedFood
+import com.example.fithall.data.PackagedFoods
+import com.example.fithall.data.PortionUnit
+import com.example.fithall.data.UnavailableFoodDatabase
 import com.example.fithall.domain.CheckInCalculator
 import com.example.fithall.domain.MacroCalculator
 import com.example.fithall.domain.ProgressCalculator
@@ -35,11 +40,20 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlin.random.Random
 
+/** Where a meal being logged came from. */
+sealed interface MealSource {
+    data class Photo(val jpeg: ByteArray) : MealSource
+    data class Description(val text: String) : MealSource
+    data class Barcode(val code: String) : MealSource
+}
+
 sealed interface ScanState {
     data object Idle : ScanState
-    data class Analyzing(val photo: ByteArray) : ScanState
-    data class Result(val photo: ByteArray, val analysis: MealAnalysis) : ScanState
-    data class Failed(val photo: ByteArray, val message: String) : ScanState
+    data class Analyzing(val source: MealSource) : ScanState
+    data class Result(val source: MealSource, val analysis: MealAnalysis) : ScanState
+    data class Failed(val source: MealSource, val message: String) : ScanState
+    /** A barcode matched a product; the user picks a portion next. */
+    data class ProductFound(val product: PackagedFood) : ScanState
 }
 
 data class AppState(
@@ -73,6 +87,7 @@ data class AppState(
 class AppViewModel(
     private val repository: AppRepository,
     private val ai: AiService,
+    private val foods: FoodDatabase = UnavailableFoodDatabase("Barcode lookup is not available on this platform."),
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(
@@ -110,27 +125,74 @@ class AppViewModel(
 
     // ---- Meal scanning ----
 
-    fun analyzeMeal(photo: ByteArray, note: String = "") {
-        _state.update { it.copy(scan = ScanState.Analyzing(photo)) }
+    fun analyzeMeal(photo: ByteArray, note: String = "") =
+        analyze(MealSource.Photo(photo)) { ai.analyzeMeal(photo, note) }
+
+    fun analyzeDescription(text: String) {
+        val trimmed = text.trim()
+        if (trimmed.isEmpty()) return
+        analyze(MealSource.Description(trimmed)) { ai.analyzeMealDescription(trimmed) }
+    }
+
+    private fun analyze(source: MealSource, call: suspend () -> MealAnalysis) {
+        _state.update { it.copy(scan = ScanState.Analyzing(source)) }
         viewModelScope.launch {
-            val result = runAi { ai.analyzeMeal(photo, note) }
+            val result = runAi(call)
             _state.update {
                 it.copy(
                     scan = result.fold(
-                        onSuccess = { analysis -> ScanState.Result(photo, analysis) },
-                        onFailure = { e -> ScanState.Failed(photo, e.userMessage()) },
+                        onSuccess = { analysis -> ScanState.Result(source, analysis) },
+                        onFailure = { e -> ScanState.Failed(source, e.userMessage()) },
                     )
                 )
             }
         }
     }
 
-    fun retryScan(note: String) {
-        when (val scan = _state.value.scan) {
-            is ScanState.Failed -> analyzeMeal(scan.photo, note)
-            is ScanState.Result -> analyzeMeal(scan.photo, note)
-            else -> Unit
+    /**
+     * Re-runs the current scan. For photos, [input] is a correction note; for descriptions it
+     * replaces the description; for barcodes the lookup is simply retried.
+     */
+    fun retryScan(input: String) {
+        val source = when (val scan = _state.value.scan) {
+            is ScanState.Failed -> scan.source
+            is ScanState.Result -> scan.source
+            else -> return
         }
+        when (source) {
+            is MealSource.Photo -> analyzeMeal(source.jpeg, input)
+            is MealSource.Description -> analyzeDescription(input.ifBlank { source.text })
+            is MealSource.Barcode -> lookupBarcode(source.code)
+        }
+    }
+
+    fun lookupBarcode(raw: String) {
+        val code = raw.filter { it.isDigit() }
+        val source = MealSource.Barcode(code)
+        if (code.length !in 6..14) {
+            _state.update { it.copy(scan = ScanState.Failed(source, "That doesn't look like a food barcode. Try scanning again.")) }
+            return
+        }
+        _state.update { it.copy(scan = ScanState.Analyzing(source)) }
+        viewModelScope.launch {
+            val result = runAi { foods.lookupBarcode(code) }
+            _state.update {
+                it.copy(
+                    scan = result.fold(
+                        onSuccess = { product ->
+                            if (product != null) ScanState.ProductFound(product)
+                            else ScanState.Failed(source, "This product isn't in the Open Food Facts database yet. Describe it instead, or snap a photo of it.")
+                        },
+                        onFailure = { ScanState.Failed(source, "Couldn't look up the barcode. Check your internet connection and try again.") },
+                    )
+                )
+            }
+        }
+    }
+
+    fun logProduct(product: PackagedFood, amount: Double, unit: PortionUnit) {
+        val meal = PackagedFoods.toMeal(product, amount, unit) ?: return
+        logScannedMeal(meal)
     }
 
     fun logScannedMeal(analysis: MealAnalysis) {

@@ -20,3 +20,19 @@ actual fun rememberMealPhotoLauncher(onPhoto: (ByteArray) -> Unit): MealPhotoLau
         override fun pickFromGallery() = Unit
     }
 }
+
+@Composable
+actual fun rememberVoiceInput(prompt: String, onText: (String) -> Unit, onError: (String) -> Unit): VoiceInput = remember {
+    object : VoiceInput {
+        override val isAvailable = false
+        override fun start() = Unit
+    }
+}
+
+@Composable
+actual fun rememberBarcodeScanner(onBarcode: (String) -> Unit, onError: (String) -> Unit): BarcodeScanner = remember {
+    object : BarcodeScanner {
+        override val isAvailable = false
+        override fun scan() = Unit
+    }
+}

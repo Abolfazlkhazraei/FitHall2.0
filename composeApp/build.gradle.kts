@@ -43,6 +43,8 @@ kotlin {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.androidx.activity.compose)
             implementation(libs.anthropic.java)
+            implementation(libs.okhttp)
+            implementation(libs.playServices.codeScanner)
         }
         commonMain.dependencies {
             implementation(libs.compose.runtime)
@@ -60,6 +62,7 @@ kotlin {
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
+            implementation(libs.kotlinx.coroutinesTest)
         }
         jvmMain.dependencies {
             implementation(compose.desktop.currentOs)
