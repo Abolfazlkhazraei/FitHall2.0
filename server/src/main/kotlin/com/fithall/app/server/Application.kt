@@ -234,7 +234,11 @@ private fun Decision.Denied.toApiException() = when (reason) {
 }
 
 private fun AiException.toApiException(): ApiException = when (kind) {
-    AiErrorKind.INVALID_REQUEST -> ApiException(HttpStatusCode.BadRequest, ErrorCodes.INVALID_REQUEST, message ?: "Invalid request.")
+    AiErrorKind.INVALID_REQUEST -> {
+        // Anthropic's reason names the offending parameter; it doesn't echo request content.
+        log.warn("AI request rejected by Anthropic: {}", cause?.message ?: message)
+        ApiException(HttpStatusCode.BadRequest, ErrorCodes.INVALID_REQUEST, message ?: "Invalid request.")
+    }
     AiErrorKind.REFUSED -> ApiException(HttpStatusCode.UnprocessableEntity, ErrorCodes.REFUSED, message ?: "The AI declined this request.")
     AiErrorKind.RATE_LIMITED -> ApiException(HttpStatusCode.ServiceUnavailable, ErrorCodes.SERVICE_BUSY, message ?: "The AI is busy.", 30)
     AiErrorKind.DAILY_LIMIT -> ApiException(HttpStatusCode.TooManyRequests, ErrorCodes.DAILY_LIMIT, message ?: "Daily limit reached.")

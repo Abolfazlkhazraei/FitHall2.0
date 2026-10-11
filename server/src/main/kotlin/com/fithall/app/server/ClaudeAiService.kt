@@ -155,6 +155,13 @@ class ClaudeAiService(
         } catch (e: InternalServerException) {
             throw AiException("The AI service is having trouble. Please try again shortly.", AiErrorKind.UNAVAILABLE, e)
         } catch (e: BadRequestException) {
+            // Anthropic reports an empty credit balance as a 400, but it's an account problem, not a bad request.
+            if (e.message.orEmpty().contains("credit balance", ignoreCase = true)) {
+                throw AiException(
+                    "The Anthropic account has no API credit. Add credit under Plans & Billing in the Anthropic Console.",
+                    AiErrorKind.CONFIGURATION, e,
+                )
+            }
             throw AiException("The AI couldn't process this request.", AiErrorKind.INVALID_REQUEST, e)
         } catch (e: AnthropicServiceException) {
             throw AiException("The AI service returned an error (${e.statusCode()}). Please try again.", AiErrorKind.UNAVAILABLE, e)
