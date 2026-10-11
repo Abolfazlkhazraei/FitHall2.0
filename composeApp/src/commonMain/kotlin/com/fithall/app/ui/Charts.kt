@@ -12,7 +12,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
 import com.fithall.app.domain.ProgressCalculator
@@ -74,9 +76,20 @@ fun LineChart(
                     moveTo(points.first().x, points.first().y)
                     points.drop(1).forEach { lineTo(it.x, it.y) }
                 }
-                drawPath(path, color, style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round))
+                // Soft gradient under the line.
+                val fill = Path().apply {
+                    addPath(path)
+                    lineTo(points.last().x, pad + h)
+                    lineTo(points.first().x, pad + h)
+                    close()
+                }
+                drawPath(fill, Brush.verticalGradient(listOf(color.copy(alpha = 0.28f), color.copy(alpha = 0f)), startY = pad, endY = pad + h))
+                drawPath(path, color, style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
             }
-            points.forEach { drawCircle(color, radius = 4.dp.toPx(), center = it) }
+            points.forEach {
+                drawCircle(color, radius = 5.dp.toPx(), center = it)
+                drawCircle(Color.White, radius = 2.dp.toPx(), center = it)
+            }
         }
         Row(Modifier.fillMaxWidth()) {
             Text(labels.firstOrNull().orEmpty(), style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f))

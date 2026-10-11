@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -23,6 +24,8 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -130,104 +133,116 @@ fun NutritionScreen(state: AppState, viewModel: AppViewModel) {
     }
 
     val targets = state.targets ?: return
+    val eaten = state.todaysTotals
     LazyColumn(
         Modifier.fillMaxSize(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item { Text("Today", style = MaterialTheme.typography.headlineSmall) }
-        state.profile?.let(MacroCalculator::safetyNotice)?.let { notice -> item { SafetyNotice(notice) } }
-        item { MacroSummaryCard(eaten = state.todaysTotals, targets = targets) }
         item {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = launcher::takePhoto, enabled = launcher.canTakePhoto, modifier = Modifier.weight(1f)) {
-                        Icon(Icons.Filled.CameraAlt, null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Snap meal")
-                    }
-                    OutlinedButton(onClick = launcher::pickFromGallery, enabled = launcher.canPickFromGallery, modifier = Modifier.weight(1f)) {
-                        Icon(Icons.Filled.PhotoLibrary, null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Gallery")
-                    }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { describing = true }, modifier = Modifier.weight(1f)) {
-                        Icon(Icons.Filled.Mic, null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Say or type")
-                    }
-                    OutlinedButton(onClick = barcodeScanner::scan, enabled = barcodeScanner.isAvailable, modifier = Modifier.weight(1f)) {
-                        Icon(Icons.Filled.QrCodeScanner, null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Barcode")
-                    }
+            HeroHeader(
+                title = state.profile?.name?.takeIf { it.isNotBlank() }?.let { "Hi, ${it.substringBefore(' ')}" } ?: "Today",
+                subtitle = longDate(state.today),
+            ) {
+                CalorieSummary(eaten, targets)
+            }
+        }
+        state.profile?.let(MacroCalculator::safetyNotice)?.let { notice -> item { Padded { SafetyNotice(notice) } } }
+        item {
+            Padded {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    ActionTile(Icons.Filled.CameraAlt, "Snap", MacroColors.carbs, launcher::takePhoto, Modifier.weight(1f), launcher.canTakePhoto)
+                    ActionTile(Icons.Filled.PhotoLibrary, "Gallery", Color(0xFF0E7C86), launcher::pickFromGallery, Modifier.weight(1f), launcher.canPickFromGallery)
+                    ActionTile(Icons.Filled.Mic, "Say it", MacroColors.calories, { describing = true }, Modifier.weight(1f))
+                    ActionTile(Icons.Filled.QrCodeScanner, "Barcode", MacroColors.protein, barcodeScanner::scan, Modifier.weight(1f), barcodeScanner.isAvailable)
                 }
             }
         }
 
-        item { Text("Meals logged today", style = MaterialTheme.typography.titleMedium) }
+        item {
+            Padded {
+                SectionHeader("Today's meals") {
+                    if (state.todaysMeals.isNotEmpty()) Pill("${eaten.calories} kcal", MacroColors.calories)
+                }
+            }
+        }
         if (state.todaysMeals.isEmpty()) {
             item {
-                Text(
-                    "Nothing logged yet. Snap your plate, say what you ate, or scan a barcode.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Padded {
+                    EmptyState(
+                        Icons.Filled.Restaurant,
+                        "Nothing logged yet",
+                        "Snap your plate, say what you ate, or scan a barcode.",
+                        accent = MacroColors.carbs,
+                    )
+                }
             }
         }
         items(state.todaysMeals.asReversed(), key = { it.id }) { meal ->
-            MealRow(meal, onSave = viewModel::updateMeal, onDelete = { viewModel.deleteMeal(meal.id) })
+            Padded { MealRow(meal, onSave = viewModel::updateMeal, onDelete = { viewModel.deleteMeal(meal.id) }) }
         }
 
         item {
-            Spacer(Modifier.height(8.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("AI meal plan", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                TextButton(onClick = viewModel::generateNutritionPlan, enabled = !state.generatingNutrition) {
-                    Icon(Icons.Filled.AutoAwesome, null, Modifier.size(18.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text(if (state.nutritionPlan == null) "Generate" else "Regenerate")
+            Padded {
+                SectionHeader("AI meal plan") {
+                    TextButton(onClick = viewModel::generateNutritionPlan, enabled = !state.generatingNutrition) {
+                        Icon(Icons.Filled.AutoAwesome, null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text(if (state.nutritionPlan == null) "Generate" else "Regenerate")
+                    }
                 }
             }
         }
         state.nutritionPlanFailure?.let { failure ->
-            item { ErrorCard(failure, onRetry = viewModel::generateNutritionPlan, onDismiss = viewModel::dismissFailures) }
+            item { Padded { ErrorCard(failure, onRetry = viewModel::generateNutritionPlan, onDismiss = viewModel::dismissFailures) } }
         }
-        item { NutritionPlanSection(state) }
+        item { Padded { NutritionPlanSection(state) } }
     }
 }
 
+private val weekdayNames = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+
+/** "2026-10-11" -> "Sunday, Oct 11". */
+private fun longDate(dayKey: String): String = runCatching {
+    val date = kotlinx.datetime.LocalDate.parse(dayKey)
+    "${weekdayNames[date.dayOfWeek.ordinal]}, ${shortDate(dayKey)}"
+}.getOrDefault(dayKey)
+
+/** Inside the hero header: a big calorie ring and three macro rings, in white on the gradient. */
 @Composable
-private fun MacroSummaryCard(eaten: MacroTargets, targets: MacroTargets) {
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            val left = targets.calories - eaten.calories
-            Text(
-                if (left >= 0) "$left kcal left" else "${-left} kcal over",
-                style = MaterialTheme.typography.titleLarge,
-            )
-            MacroBar("Calories", eaten.calories, targets.calories, "kcal", MacroColors.calories)
-            MacroBar("Protein", eaten.proteinG, targets.proteinG, "g", MacroColors.protein)
-            MacroBar("Carbs", eaten.carbsG, targets.carbsG, "g", MacroColors.carbs)
-            MacroBar("Fat", eaten.fatG, targets.fatG, "g", MacroColors.fat)
+private fun CalorieSummary(eaten: MacroTargets, targets: MacroTargets) {
+    val left = targets.calories - eaten.calories
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        ProgressRing(
+            progress = if (targets.calories == 0) 0f else eaten.calories.toFloat() / targets.calories,
+            size = 132.dp,
+            stroke = 12.dp,
+            color = if (left >= 0) Color.White else Color(0xFFFFC2A8),
+            trackColor = Color.White.copy(alpha = 0.22f),
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    "${kotlin.math.abs(left)}",
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = Brand.onGradient,
+                    fontWeight = FontWeight.ExtraBold,
+                )
+                Text(
+                    if (left >= 0) "kcal left" else "kcal over",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = Brand.onGradientMuted,
+                )
+            }
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("${eaten.calories} / ${targets.calories} kcal", style = MaterialTheme.typography.titleSmall, color = Brand.onGradient)
+            Text("eaten today", style = MaterialTheme.typography.labelSmall, color = Brand.onGradientMuted)
         }
     }
-}
-
-@Composable
-private fun MacroBar(label: String, value: Int, target: Int, unit: String, color: Color) {
-    Column {
-        Row {
-            Text(label, style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
-            Text("$value / $target $unit", style = MaterialTheme.typography.labelLarge)
-        }
-        LinearProgressIndicator(
-            progress = { if (target == 0) 0f else (value.toFloat() / target).coerceIn(0f, 1f) },
-            color = color,
-            modifier = Modifier.fillMaxWidth().padding(top = 4.dp).height(8.dp).clip(RoundedCornerShape(4.dp)),
-        )
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+        MacroRing("Protein", eaten.proteinG, targets.proteinG, Color(0xFF9DCBFF), onGradient = true)
+        MacroRing("Carbs", eaten.carbsG, targets.carbsG, Color(0xFFB7F1CF), onGradient = true)
+        MacroRing("Fat", eaten.fatG, targets.fatG, Color(0xFFFFDE85), onGradient = true)
     }
 }
 
@@ -243,16 +258,22 @@ private fun MealRow(meal: MealEntry, onSave: (MealEntry) -> Unit, onDelete: () -
             onDismiss = { editing = false },
         )
     }
-    Card(Modifier.fillMaxWidth().clickable { editing = true }) {
-        Row(Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+    ContentCard(onClick = { editing = true }) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconBadge(Icons.Filled.Restaurant, MacroColors.carbs, size = 44.dp)
+            HSpace(12.dp)
             Column(Modifier.weight(1f)) {
-                Text(meal.analysis.mealName, style = MaterialTheme.typography.titleSmall)
+                Text(meal.analysis.mealName, style = MaterialTheme.typography.titleSmall, maxLines = 1)
                 Text(
-                    "${t.calories} kcal · P ${t.proteinG} g · C ${t.carbsG} g · F ${t.fatG} g",
+                    "P ${t.proteinG} g · C ${t.carbsG} g · F ${t.fatG} g",
                     style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            IconButton(onClick = onDelete) { Icon(Icons.Filled.Delete, contentDescription = "Delete meal") }
+            Pill("${t.calories} kcal", MacroColors.calories)
+            IconButton(onClick = onDelete) {
+                Icon(Icons.Filled.Delete, contentDescription = "Delete meal", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
     }
 }
@@ -267,22 +288,29 @@ private fun NutritionPlanSection(state: AppState) {
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        else -> Card(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(plan.summary, style = MaterialTheme.typography.bodyMedium)
-                plan.meals.forEach { meal ->
-                    HorizontalDivider()
-                    Text(meal.name, style = MaterialTheme.typography.titleSmall)
+        else -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(plan.summary, style = MaterialTheme.typography.bodyMedium)
+            plan.meals.forEach { meal ->
+                ContentCard {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(meal.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                        Pill("${meal.calories} kcal", MacroColors.calories)
+                    }
                     Text(meal.description, style = MaterialTheme.typography.bodyMedium)
                     Text(
-                        "${meal.calories} kcal · P ${meal.proteinG} g · C ${meal.carbsG} g · F ${meal.fatG} g",
+                        "P ${meal.proteinG} g · C ${meal.carbsG} g · F ${meal.fatG} g",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                if (plan.tips.isNotEmpty()) {
-                    HorizontalDivider()
-                    Text("Tips", style = MaterialTheme.typography.titleSmall)
+            }
+            if (plan.tips.isNotEmpty()) {
+                ContentCard {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconBadge(Icons.Filled.AutoAwesome, MaterialTheme.colorScheme.tertiary, size = 32.dp)
+                        HSpace(10.dp)
+                        Text("Tips", style = MaterialTheme.typography.titleMedium)
+                    }
                     plan.tips.forEach { Text("• $it", style = MaterialTheme.typography.bodyMedium) }
                 }
             }
@@ -312,7 +340,7 @@ private fun ScanResultScreen(
     var input by rememberSaveable(source) { mutableStateOf((source as? MealSource.Description)?.text ?: "") }
 
     LazyColumn(
-        Modifier.fillMaxSize(),
+        Modifier.fillMaxSize().statusBarsPadding(),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {

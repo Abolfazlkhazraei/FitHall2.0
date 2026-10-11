@@ -1,6 +1,13 @@
 package com.fithall.app.ui
 
 import androidx.compose.animation.animateContentSize
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.draw.clip
+import androidx.compose.material.icons.filled.LocalFireDepartment
+import androidx.compose.material.icons.filled.Insights
+import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -56,37 +63,46 @@ fun ProgressScreen(state: AppState, viewModel: AppViewModel) {
 
     LazyColumn(
         Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
+        contentPadding = PaddingValues(bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item { Text("Progress", style = MaterialTheme.typography.headlineSmall) }
-        item { CheckInSection(state, viewModel) }
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                StatCard(
-                    "${stats.workoutsLast7Days}/${state.profile?.trainingDaysPerWeek ?: "-"}",
-                    "workouts, last 7 days",
-                    Modifier.weight(1f),
-                )
-                StatCard("${stats.weekStreak}", if (stats.weekStreak == 1) "week streak" else "weeks streak", Modifier.weight(1f))
-                StatCard(formatVolume(stats.volumeLast7DaysKg, units), "lifted, last 7 days", Modifier.weight(1f))
+            HeroHeader(title = "Progress", subtitle = "Your last 7 days") {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    HeaderStat(
+                        Icons.Filled.FitnessCenter,
+                        "${stats.workoutsLast7Days}/${state.profile?.trainingDaysPerWeek ?: "-"}",
+                        "workouts",
+                        Modifier.weight(1f),
+                    )
+                    HeaderStat(
+                        Icons.Filled.LocalFireDepartment,
+                        "${stats.weekStreak}",
+                        if (stats.weekStreak == 1) "week streak" else "weeks streak",
+                        Modifier.weight(1f),
+                    )
+                    HeaderStat(Icons.Filled.Insights, formatVolume(stats.volumeLast7DaysKg, units), "lifted", Modifier.weight(1f))
+                }
             }
         }
-        item { BodyWeightCard(state.weights, units, onLog = viewModel::logWeight, onDelete = viewModel::deleteWeight) }
-        item { ExerciseProgressCard(logs, units) }
+        item { Padded { CheckInSection(state, viewModel) } }
+        item { Padded { BodyWeightCard(state.weights, units, onLog = viewModel::logWeight, onDelete = viewModel::deleteWeight) } }
+        item { Padded { ExerciseProgressCard(logs, units) } }
 
-        item { Text("Workout history", style = MaterialTheme.typography.titleMedium) }
+        item { Padded { SectionHeader("Workout history") } }
         if (logs.isEmpty()) {
             item {
-                Text(
-                    "No workouts logged yet. Start one from the Workouts tab and tick off sets as you go.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Padded {
+                    EmptyState(
+                        Icons.Filled.FitnessCenter,
+                        "No workouts yet",
+                        "Start one from the Workouts tab and tick off sets as you go.",
+                    )
+                }
             }
         }
         items(logs.sortedByDescending { it.startedAtMillis }, key = { it.id }) { log ->
-            HistoryCard(log, units, onDelete = { deleting = log })
+            Padded { HistoryCard(log, units, onDelete = { deleting = log }) }
         }
     }
 
@@ -100,6 +116,22 @@ fun ProgressScreen(state: AppState, viewModel: AppViewModel) {
             },
             dismissButton = { TextButton(onClick = { deleting = null }) { Text("Cancel") } },
         )
+    }
+}
+
+/** A stat inside the hero header: white on a translucent tile. */
+@Composable
+private fun HeaderStat(icon: androidx.compose.ui.graphics.vector.ImageVector, value: String, label: String, modifier: Modifier) {
+    Column(
+        modifier
+            .clip(MaterialTheme.shapes.large)
+            .background(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.16f))
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Icon(icon, null, tint = Brand.onGradient, modifier = Modifier.size(20.dp))
+        Text(value, style = MaterialTheme.typography.titleLarge, color = Brand.onGradient, fontWeight = FontWeight.Bold, maxLines = 1)
+        Text(label, style = MaterialTheme.typography.labelSmall, color = Brand.onGradientMuted, maxLines = 1)
     }
 }
 
@@ -119,8 +151,8 @@ private fun BodyWeightCard(weights: List<WeightEntry>, units: UnitSystem, onLog:
     val parsed = input.replace(',', '.').toDoubleOrNull()?.let { Units.displayToKg(it, units) }?.takeIf { it in 30.0..300.0 }
     val unit = Units.weightUnit(units)
 
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    ContentCard {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Body weight", style = MaterialTheme.typography.titleMedium)
             val latest = weights.lastOrNull()
             if (latest != null) {
@@ -179,8 +211,8 @@ private fun ExerciseProgressCard(logs: List<WorkoutLog>, units: UnitSystem) {
     val selected = chosen.takeIf { it in exercises } ?: exercises.first()
     val progress = remember(logs, selected) { ProgressCalculator.exerciseProgress(logs, selected) }
 
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    ContentCard {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Exercise progress", style = MaterialTheme.typography.titleMedium)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 exercises.take(12).forEach { name ->

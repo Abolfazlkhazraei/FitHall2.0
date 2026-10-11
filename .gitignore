@@ -25,3 +25,6 @@ keystore.properties
 
 # Firebase project config (download from the Firebase console)
 google-services.json
+
+# Local dev server secret (server/run-dev.*)
+server/.dev-token-secret

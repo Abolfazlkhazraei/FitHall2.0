@@ -1,6 +1,11 @@
 package com.fithall.app.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -72,18 +77,38 @@ fun ProfileScreen(
     privacyPolicyUrl: String,
     viewModel: AppViewModel,
 ) {
-    Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Text("Your profile", style = MaterialTheme.typography.headlineSmall)
-        val targets = MacroCalculator.targets(profile, adjustment)
+    val targets = MacroCalculator.targets(profile, adjustment)
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        HeroHeader(
+            title = profile.name.ifBlank { "Your profile" },
+            subtitle = "Profile · ${profile.goal.label}",
+            trailing = {
+                Box(
+                    Modifier.size(56.dp).clip(CircleShape).background(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.2f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        profile.name.trim().take(1).uppercase().ifEmpty { "?" },
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = Brand.onGradient,
+                    )
+                }
+            },
+        ) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                HeaderChip("${targets.calories} kcal")
+                HeaderChip("P ${targets.proteinG} g")
+                HeaderChip("C ${targets.carbsG} g")
+                HeaderChip("F ${targets.fatG} g")
+            }
+            Text(
+                "Maintenance ≈ ${MacroCalculator.tdee(profile).roundToInt()} kcal/day",
+                style = MaterialTheme.typography.labelMedium,
+                color = Brand.onGradientMuted,
+            )
+        }
+    Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         MacroCalculator.safetyNotice(profile)?.let { SafetyNotice(it) }
-        Text(
-            "Maintenance ≈ ${MacroCalculator.tdee(profile).roundToInt()} kcal/day · " +
-                "Target ${targets.calories} kcal · P ${targets.proteinG} g · C ${targets.carbsG} g · F ${targets.fatG} g",
-            style = MaterialTheme.typography.bodyMedium,
-        )
         if (!adjustment.isZero) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -110,6 +135,7 @@ fun ProfileScreen(
         )
         RemindersSection(remindersOn, viewModel)
         YourDataSection(privacyPolicyUrl, crashReportsOn, viewModel)
+    }
     }
 }
 

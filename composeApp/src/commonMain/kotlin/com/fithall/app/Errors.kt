@@ -31,7 +31,8 @@ object ErrorMessages {
         if (error !is AiException) return AiFailure("Something went wrong. Please try again.", canRetry = true)
         val message = error.message?.takeIf { it.isNotBlank() } ?: "Something went wrong. Please try again."
         return when (error.kind) {
-            AiErrorKind.NETWORK -> AiFailure("Couldn't reach FitHall. Check your connection and try again.", canRetry = true)
+            // Online but no answer: the FitHall server is down or unreachable, not the user's connection.
+            AiErrorKind.NETWORK -> AiFailure("Couldn't reach the FitHall server. Please try again in a moment.", canRetry = true)
             AiErrorKind.UNAVAILABLE, AiErrorKind.RATE_LIMITED -> AiFailure(message, canRetry = true)
             AiErrorKind.DAILY_LIMIT, AiErrorKind.REFUSED, AiErrorKind.INVALID_REQUEST -> AiFailure(message, canRetry = false)
             // Configuration problems are server-side; their text is never shown.

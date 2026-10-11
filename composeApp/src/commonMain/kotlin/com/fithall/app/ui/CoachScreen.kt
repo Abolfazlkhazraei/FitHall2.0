@@ -1,6 +1,16 @@
 package com.fithall.app.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.clip
+import androidx.compose.material3.SuggestionChipDefaults
+import androidx.compose.material3.SuggestionChip
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -62,37 +72,35 @@ fun CoachScreen(state: AppState, viewModel: AppViewModel) {
     }
 
     Column(Modifier.fillMaxSize().imePadding()) {
-        Row(Modifier.padding(start = 16.dp, top = 16.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("AI Coach", style = MaterialTheme.typography.headlineSmall)
-                Text(
-                    "Knows your profile, today's meals and your plans",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            if (state.chat.isNotEmpty()) {
-                IconButton(onClick = viewModel::clearChat) { Icon(Icons.Filled.DeleteSweep, contentDescription = "Clear chat") }
-            }
-        }
+        HeroHeader(
+            title = "AI Coach",
+            subtitle = "Knows your profile, meals and plans",
+            trailing = {
+                if (state.chat.isNotEmpty()) {
+                    IconButton(onClick = viewModel::clearChat) {
+                        Icon(Icons.Filled.DeleteSweep, contentDescription = "Clear chat", tint = Brand.onGradient)
+                    }
+                }
+            },
+        )
 
         LazyColumn(
             state = listState,
             modifier = Modifier.weight(1f).fillMaxWidth(),
             contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             if (state.chat.isEmpty()) {
                 item {
-                    Text(
-                        "Hi ${state.profile?.name ?: ""}! Ask me anything about your training or nutrition, " +
-                            "or ask me to adjust your plan.",
-                        style = MaterialTheme.typography.bodyLarge,
+                    EmptyState(
+                        Icons.Filled.AutoAwesome,
+                        "Hi ${state.profile?.name?.substringBefore(' ') ?: "there"}!",
+                        "Ask me anything about your training or nutrition, or ask me to adjust your plan.",
                     )
                 }
             }
             items(state.chat) { Bubble(it) }
-            if (state.coachTyping) item { Bubble(ChatMessage(ChatRole.ASSISTANT, "…")) }
+            if (state.coachTyping) item { Bubble(ChatMessage(ChatRole.ASSISTANT, "Thinking…")) }
             state.coachFailure?.takeIf { !state.coachTyping }?.let { failure ->
                 item {
                     ErrorCard(
@@ -109,7 +117,15 @@ fun CoachScreen(state: AppState, viewModel: AppViewModel) {
                 contentPadding = PaddingValues(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                items(suggestions) { s -> AssistChip(onClick = { send(s) }, label = { Text(s) }) }
+                items(suggestions) { s ->
+                    SuggestionChip(
+                        onClick = { send(s) },
+                        label = { Text(s) },
+                        shape = RoundedCornerShape(50),
+                        colors = SuggestionChipDefaults.suggestionChipColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                        border = null,
+                    )
+                }
             }
         }
 
@@ -118,11 +134,23 @@ fun CoachScreen(state: AppState, viewModel: AppViewModel) {
                 value = input,
                 onValueChange = { input = it },
                 placeholder = { Text("Message your coach") },
+                shape = RoundedCornerShape(28.dp),
                 modifier = Modifier.weight(1f),
                 maxLines = 4,
             )
-            IconButton(onClick = { send(input) }, enabled = input.isNotBlank() && !state.coachTyping) {
-                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send")
+            Spacer(Modifier.width(8.dp))
+            val canSend = input.isNotBlank() && !state.coachTyping
+            Box(
+                Modifier.size(52.dp).clip(CircleShape)
+                    .background(if (canSend) Brand.gradient else Brush.linearGradient(listOf(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.surfaceVariant)))
+                    .clickable(enabled = canSend) { send(input) },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.AutoMirrored.Filled.Send,
+                    contentDescription = "Send",
+                    tint = if (canSend) Brand.onGradient else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }
@@ -131,16 +159,28 @@ fun CoachScreen(state: AppState, viewModel: AppViewModel) {
 @Composable
 private fun Bubble(message: ChatMessage) {
     val mine = message.role == ChatRole.USER
-    Box(Modifier.fillMaxWidth(), contentAlignment = if (mine) Alignment.CenterEnd else Alignment.CenterStart) {
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start,
+        verticalAlignment = Alignment.Bottom,
+    ) {
+        if (!mine) {
+            Box(Modifier.size(32.dp).clip(CircleShape).background(Brand.gradient), contentAlignment = Alignment.Center) {
+                Icon(Icons.Filled.AutoAwesome, null, tint = Brand.onGradient, modifier = Modifier.size(18.dp))
+            }
+            Spacer(Modifier.width(8.dp))
+        }
+        val shape = if (mine) RoundedCornerShape(20.dp, 20.dp, 6.dp, 20.dp) else RoundedCornerShape(20.dp, 20.dp, 20.dp, 6.dp)
         Text(
             message.text,
             style = MaterialTheme.typography.bodyMedium,
-            color = if (mine) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+            color = if (mine) Brand.onGradient else MaterialTheme.colorScheme.onSurface,
             modifier = Modifier
-                .widthIn(max = 300.dp)
-                .background(
-                    if (mine) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                    RoundedCornerShape(16.dp),
+                .widthIn(max = 290.dp)
+                .clip(shape)
+                .then(
+                    if (mine) Modifier.background(Brand.gradient)
+                    else Modifier.background(MaterialTheme.colorScheme.surfaceContainerHigh)
                 )
                 .padding(horizontal = 14.dp, vertical = 10.dp),
         )

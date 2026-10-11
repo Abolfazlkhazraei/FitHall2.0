@@ -2,6 +2,13 @@ package com.fithall.app
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
@@ -92,8 +99,10 @@ fun App(
 
         Scaffold(
             snackbarHost = { SnackbarHost(snackbar) },
+            // Screens handle the status bar themselves, so hero headers can draw behind it.
+            contentWindowInsets = WindowInsets(0, 0, 0, 0),
             bottomBar = {
-                NavigationBar {
+                NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest, tonalElevation = 0.dp) {
                     Tab.entries.forEach { item ->
                         NavigationBarItem(
                             selected = tab == item,
@@ -103,14 +112,20 @@ fun App(
                                 BadgedBox(badge = { if (badge) Badge() }) { Icon(item.icon, contentDescription = null) }
                             },
                             label = { Text(item.label) },
+                            colors = NavigationBarItemDefaults.colors(
+                                indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                                selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                selectedTextColor = MaterialTheme.colorScheme.primary,
+                            ),
                         )
                     }
                 }
             },
         ) { padding ->
-            Column(Modifier.padding(padding)) {
-                if (!online) OfflineBanner()
-                Box(Modifier.weight(1f)) {
+            Column(Modifier.padding(bottom = padding.calculateBottomPadding())) {
+                if (!online) OfflineBanner(Modifier.statusBarsPadding())
+                // When the banner is showing it already covers the status bar.
+                Box(Modifier.weight(1f).then(if (!online) Modifier.consumeWindowInsets(WindowInsets.statusBars) else Modifier)) {
                 when (tab) {
                     Tab.NUTRITION -> NutritionScreen(state, viewModel)
                     Tab.WORKOUTS -> WorkoutScreen(state, viewModel)

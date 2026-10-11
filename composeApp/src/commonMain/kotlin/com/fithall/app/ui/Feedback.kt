@@ -93,9 +93,9 @@ fun ErrorCard(failure: AiFailure, onRetry: () -> Unit, onDismiss: (() -> Unit)? 
 
 /** Across the top of the app while there's no connection. */
 @Composable
-fun OfflineBanner() {
+fun OfflineBanner(modifier: Modifier = Modifier) {
     Row(
-        Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.inverseSurface).padding(horizontal = 16.dp, vertical = 8.dp),
+        Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.inverseSurface).then(modifier).padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(Icons.Filled.CloudOff, null, tint = MaterialTheme.colorScheme.inverseOnSurface, modifier = Modifier.size(18.dp))

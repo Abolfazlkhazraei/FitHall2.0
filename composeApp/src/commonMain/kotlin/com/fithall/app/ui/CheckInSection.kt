@@ -2,6 +2,9 @@ package com.fithall.app.ui
 
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -54,22 +57,27 @@ fun CheckInSection(state: AppState, viewModel: AppViewModel) {
 
 @Composable
 private fun DueCard(onRun: () -> Unit) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-        modifier = Modifier.fillMaxWidth(),
+    Column(
+        Modifier.fillMaxWidth().clip(MaterialTheme.shapes.large).background(Brand.warmGradient).padding(18.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Your weekly check-in is ready", style = MaterialTheme.typography.titleMedium)
-            Text(
-                "Your coach will review your weight trend, meals and workouts from this week and suggest " +
-                    "changes to your targets and plan. Nothing changes until you approve it.",
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            Button(onClick = onRun, modifier = Modifier.fillMaxWidth()) {
-                Icon(Icons.Filled.AutoAwesome, null)
-                Spacer(Modifier.width(8.dp))
-                Text("Start check-in")
-            }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Filled.AutoAwesome, null, tint = Brand.onGradient)
+            Spacer(Modifier.width(8.dp))
+            Text("Your weekly check-in is ready", style = MaterialTheme.typography.titleMedium, color = Brand.onGradient)
+        }
+        Text(
+            "Your coach will review your weight trend, meals and workouts from this week and suggest " +
+                "changes to your targets and plan. Nothing changes until you approve it.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = Brand.onGradient,
+        )
+        Button(
+            onClick = onRun,
+            colors = ButtonDefaults.buttonColors(containerColor = androidx.compose.ui.graphics.Color.White, contentColor = androidx.compose.ui.graphics.Color(0xFF8A3A10)),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("Start check-in")
         }
     }
 }
