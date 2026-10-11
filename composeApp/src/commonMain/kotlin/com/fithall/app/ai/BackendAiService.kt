@@ -65,8 +65,11 @@ class BackendAiService(
         val config: HttpClientConfig<*>.() -> Unit = {
             install(ContentNegotiation) { json(json) }
             install(HttpTimeout) {
-                // Plans and check-ins are long, high-effort generations.
-                requestTimeoutMillis = 180_000
+                // Plans and check-ins are long, high-effort generations, and the server sends nothing
+                // until the answer is ready. The socket timeout must be as long as the request timeout,
+                // or the engine's default (10 s on OkHttp) cuts the request off while Claude is working.
+                requestTimeoutMillis = AI_TIMEOUT_MILLIS
+                socketTimeoutMillis = AI_TIMEOUT_MILLIS
                 connectTimeoutMillis = 15_000
             }
         }
@@ -166,5 +169,6 @@ class BackendAiService(
 
     private companion object {
         const val TOKEN_KEY = "backend_device_token"
+        const val AI_TIMEOUT_MILLIS = 180_000L
     }
 }
