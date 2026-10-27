@@ -56,9 +56,10 @@ class AccountsTest {
         kid: String = "k1",
         alg: String = "RS256",
         signWith: PrivateKey = keys.private,
+        provider: String = "password",
     ): String {
         val head = b64("""{"alg":"$alg","kid":"$kid","typ":"JWT"}""")
-        val body = b64("""{"sub":"$sub","aud":"$aud","iss":"$iss","exp":$exp,"iat":${now - 60},"auth_time":${now - 60},"email_verified":$verified}""")
+        val body = b64("""{"sub":"$sub","aud":"$aud","iss":"$iss","exp":$exp,"iat":${now - 60},"auth_time":${now - 60},"email_verified":$verified,"firebase":{"sign_in_provider":"$provider"}}""")
         val signature = Signature.getInstance("SHA256withRSA").apply { initSign(signWith); update("$head.$body".toByteArray()) }.sign()
         return "$head.$body.${Base64.getUrlEncoder().withoutPadding().encodeToString(signature)}"
     }
@@ -75,6 +76,10 @@ class AccountsTest {
         assertNull(verifier.verify(token(alg = "none")), "alg none")
         assertNull(verifier.verify(token(sub = "")), "no uid")
         assertNull(verifier.verify("not.a.jwt"))
+        // Google and Facebook accounts count as verified even without a verified email claim.
+        assertEquals(true, verifier.verify(token(verified = false, provider = "google.com"))?.emailVerified)
+        assertEquals(true, verifier.verify(token(verified = false, provider = "facebook.com"))?.emailVerified)
+        assertEquals(false, verifier.verify(token(verified = false, provider = "anonymous"))?.emailVerified)
         // Changing the payload after signing breaks the signature.
         val parts = token().split('.')
         assertNull(verifier.verify("${parts[0]}.${b64("""{"sub":"admin","aud":"fithall-app"}""")}.${parts[2]}"))

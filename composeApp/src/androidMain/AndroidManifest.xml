@@ -62,6 +62,29 @@
             android:name="google_analytics_default_allow_ad_personalization_signals"
             android:value="false" />
 
+        <!-- Facebook Login only. The SDK starts when the user taps "Continue with Facebook"
+             (SocialSignIn.android.kt), not at app launch, and never logs app events or collects
+             the advertising ID. -->
+        <provider
+            android:name="com.facebook.internal.FacebookInitProvider"
+            android:authorities="${applicationId}.FacebookInitProvider"
+            tools:node="remove" />
+        <meta-data
+            android:name="com.facebook.sdk.ApplicationId"
+            android:value="@string/facebook_app_id" />
+        <meta-data
+            android:name="com.facebook.sdk.ClientToken"
+            android:value="@string/facebook_client_token" />
+        <meta-data
+            android:name="com.facebook.sdk.AutoInitEnabled"
+            android:value="false" />
+        <meta-data
+            android:name="com.facebook.sdk.AutoLogAppEventsEnabled"
+            android:value="false" />
+        <meta-data
+            android:name="com.facebook.sdk.AdvertiserIDCollectionEnabled"
+            android:value="false" />
+
         <!-- Download the barcode scanner module with the app instead of on first scan. -->
         <meta-data
             android:name="com.google.mlkit.vision.DEPENDENCIES"

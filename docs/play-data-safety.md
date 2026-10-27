@@ -15,7 +15,7 @@ barcode, which isn't user data.
 | Does your app collect or share any of the required user data types? | Yes |
 | Is all of the user data collected by your app encrypted in transit? | Yes (HTTPS; release builds refuse a non-https server) |
 | Do you provide a way for users to request that their data is deleted? | Yes: in the app (Profile → Account → Delete account) and on the web |
-| Does your app allow users to create an account? | Yes, with email and password |
+| Does your app allow users to create an account? | Yes, with email and password, or with Google or Facebook (OAuth) |
 | Delete account URL | `https://<your server>/delete-account` |
 
 ## Data types
@@ -25,6 +25,7 @@ barcode, which isn't user data.
 | Health and fitness → Health info (weight, height, injuries, dietary notes) | Yes | No | Yes | Optional (only when using AI features) | App functionality |
 | Health and fitness → Fitness info (workouts, activity level, goals) | Yes | No | Yes | Optional | App functionality |
 | Personal info → Email address | Yes | No | No | Required | App functionality, Account management |
+| Personal info → Name (shared by Google or Facebook at sign-in, stored by Firebase, not used) | Yes | No | No | Optional (only with Google or Facebook sign-in) | Account management |
 | Personal info → User IDs (Firebase account ID) | Yes | No | No | Required | App functionality, Account management, Fraud prevention, security and compliance |
 | Personal info → Other info (age, sex) | Yes | No | Yes | Optional | App functionality |
 | Photos and videos → Photos (meal photos) | Yes | No | Yes | Optional | App functionality |

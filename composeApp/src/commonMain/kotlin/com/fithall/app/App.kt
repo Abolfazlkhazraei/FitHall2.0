@@ -58,6 +58,8 @@ import com.fithall.app.ui.QuickAddSheet
 import com.fithall.app.ui.TodayScreen
 import com.fithall.app.ui.formatWeight
 import com.fithall.app.platform.SystemBackHandler
+import com.fithall.app.platform.rememberSocialSignIn
+import com.fithall.app.auth.NoSocialSignIn
 
 @Composable
 fun App(
@@ -79,6 +81,8 @@ fun App(
 ) {
     val authViewModel = viewModel { AuthViewModel(auth) }
     val authState by auth.state.collectAsStateWithLifecycle()
+    // Only offered when accounts are on; Google and Facebook sign into the same Firebase project.
+    val social = if (auth.isConfigured) rememberSocialSignIn() else NoSocialSignIn
 
     FitHallTheme {
         when (val current = authState) {
@@ -93,12 +97,12 @@ fun App(
                     }
                     WelcomeScreen(onGetStarted = { done(AuthMode.SIGN_UP) }, onLogIn = { done(AuthMode.LOG_IN) })
                 } else {
-                    key(mode) { AuthScreen(authViewModel, mode, privacyPolicyUrl, termsUrl) }
+                    key(mode) { AuthScreen(authViewModel, mode, privacyPolicyUrl, termsUrl, social) }
                 }
             }
             is AuthState.SignedIn -> {
                 val user = current.user
-                if (auth.isConfigured && !user.emailVerified) {
+                if (auth.isConfigured && !user.verified) {
                     VerifyEmailScreen(user, authViewModel, onUseAnotherAccount = auth::signOut)
                     return@FitHallTheme
                 }
@@ -128,6 +132,8 @@ fun App(
                                 authViewModel = authViewModel,
                                 onLogOut = ::logOut,
                                 wipeLocalData = { viewModel.deleteAllData(); accounts.signedOut() },
+                                provider = user.socialProvider,
+                                social = social,
                             )
                         }
                     },
@@ -214,7 +220,7 @@ private fun SignedInApp(
                 Box(Modifier.widthIn(max = MAX_CONTENT_WIDTH)) {
                     when (screen) {
                         Destination.TODAY -> TodayScreen(state, viewModel, navigate = { screen = it }, onQuickAdd = { quickAdd = true })
-                        Destination.TRAIN -> WorkoutScreen(state, viewModel)
+                        Destination.TRAIN -> WorkoutScreen(state, viewModel, onMinimize = { screen = Destination.TODAY })
                         Destination.EAT -> NutritionScreen(state, viewModel, mealRequest, onRequestHandled = { mealRequest = null })
                         Destination.PROGRESS -> ProgressScreen(state, viewModel)
                         Destination.COACH -> CoachScreen(state, viewModel, onBack = { screen = Destination.TODAY })

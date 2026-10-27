@@ -71,12 +71,14 @@ class Pages(firebaseWebApiKey: String?) {
         }
         return """
             <h1>Delete your FitHall account</h1>
-            <p>Deleting your account removes your FitHall login (your email address and password) permanently.
+            <p>Deleting your account removes your FitHall login (your email address, and your password or the link
+            to your Google or Facebook account) permanently.
             Your logs (meals, workouts, weigh-ins, plans and coach chat) are stored only on your phone and FitHall's
             server doesn't keep them, so there's nothing else of yours on our servers to delete.</p>
             <h2>In the app</h2>
             <p>Open FitHall, go to <strong>Profile → Account → Delete account</strong>. This deletes your account
-            and everything FitHall stored on that phone.</p>
+            and everything FitHall stored on that phone. If you signed up with Google or Facebook, use this option:
+            you'll confirm by signing in with Google or Facebook again.</p>
             $form
             <p class="muted">If you delete your account here, your logs stay on your phone until you uninstall FitHall
             or clear its data.</p>

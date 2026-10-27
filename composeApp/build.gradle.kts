@@ -36,6 +36,12 @@ val playCloudProjectNumber: String = localProperties.getProperty("PLAY_CLOUD_PRO
 fun releaseSetting(name: String): String? =
     localProperties.getProperty(name)?.trim()?.ifEmpty { null } ?: System.getenv(name)?.trim()?.ifEmpty { null }
 
+// "Continue with Facebook": the App ID and Client Token from developers.facebook.com (App settings ->
+// Basic / Advanced). Without them the Facebook button is hidden. Neither is a secret, but they're
+// kept out of the public repo with the other per-developer settings.
+val facebookAppId = releaseSetting("FACEBOOK_APP_ID").orEmpty()
+val facebookClientToken = releaseSetting("FACEBOOK_CLIENT_TOKEN").orEmpty()
+
 val releaseBackendUrl = releaseSetting("RELEASE_BACKEND_URL")
 // Optional: the server publishes docs/privacy-policy.md at <backend>/privacy, which the app links to
 // by default. Set this only to host the policy somewhere else.
@@ -88,6 +94,10 @@ kotlin {
             implementation(libs.firebase.analytics)
             implementation(libs.playServices.codeScanner)
             implementation(libs.playIntegrity)
+            implementation(libs.androidx.credentials)
+            implementation(libs.androidx.credentials.playServices)
+            implementation(libs.googleid)
+            implementation(libs.facebook.login)
         }
         commonMain.dependencies {
             implementation(libs.compose.runtime)
@@ -141,6 +151,9 @@ android {
         buildConfigField("String", "BACKEND_URL", "\"$backendUrl\"")
         buildConfigField("long", "PLAY_CLOUD_PROJECT_NUMBER", "${playCloudProjectNumber}L")
         buildConfigField("String", "PRIVACY_POLICY_URL", "\"${privacyPolicyUrl.orEmpty()}\"")
+        // Strings, not manifest placeholders: Android would read a numeric App ID as an integer.
+        resValue("string", "facebook_app_id", facebookAppId)
+        resValue("string", "facebook_client_token", facebookClientToken)
     }
     buildFeatures {
         buildConfig = true

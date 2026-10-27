@@ -3,7 +3,26 @@ package com.fithall.app.auth
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
-data class AuthUser(val uid: String, val email: String, val emailVerified: Boolean)
+/** How an account signs in, as Firebase names the provider. */
+enum class SocialProvider(val id: String, val label: String, internal val tokenParam: String) {
+    GOOGLE("google.com", "Google", "id_token"),
+    FACEBOOK("facebook.com", "Facebook", "access_token"),
+}
+
+const val PASSWORD_PROVIDER = "password"
+
+data class AuthUser(
+    val uid: String,
+    val email: String,
+    val emailVerified: Boolean,
+    /** [PASSWORD_PROVIDER] or a [SocialProvider.id]. */
+    val provider: String = PASSWORD_PROVIDER,
+) {
+    val socialProvider: SocialProvider? get() = SocialProvider.entries.firstOrNull { it.id == provider }
+
+    /** Google and Facebook accounts don't need to verify their email; the server agrees. */
+    val verified: Boolean get() = emailVerified || socialProvider != null
+}
 
 sealed interface AuthState {
     data object SignedOut : AuthState
@@ -13,7 +32,26 @@ sealed interface AuthState {
 /** A failed account action, with a [message] that is safe to show. */
 class AuthException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
-/** FitHall accounts: email and password, with email verification and password reset. */
+/** The user closed the Google or Facebook sign-in; not an error. */
+class SignInCancelled : Exception("Sign-in cancelled")
+
+/**
+ * Gets a token from Google or Facebook on this device, for [AuthService.signInWithProvider].
+ * [available] is empty where neither is set up (desktop, iOS, builds without the keys).
+ */
+interface SocialSignIn {
+    val available: List<SocialProvider>
+    /** Throws [SignInCancelled] when the user backs out, [AuthException] when it fails. */
+    suspend fun token(provider: SocialProvider): String
+}
+
+object NoSocialSignIn : SocialSignIn {
+    override val available = emptyList<SocialProvider>()
+    override suspend fun token(provider: SocialProvider): String =
+        throw AuthException("${provider.label} sign-in isn't available here.")
+}
+
+/** FitHall accounts: email and password (with verification and reset), or Google or Facebook. */
 interface AuthService {
     /** False in builds without Firebase (local development): everyone counts as signed in. */
     val isConfigured: Boolean
@@ -21,6 +59,8 @@ interface AuthService {
 
     suspend fun signUp(email: String, password: String)
     suspend fun signIn(email: String, password: String)
+    /** Signs in, or creates the account on first use, with a token from [SocialSignIn]. */
+    suspend fun signInWithProvider(provider: SocialProvider, token: String)
     suspend fun sendEmailVerification()
     /** Re-reads the account, e.g. to see whether the email has been verified since. */
     suspend fun reloadUser()
@@ -28,6 +68,8 @@ interface AuthService {
     suspend fun sendPasswordReset(email: String)
     /** Permanently deletes the account after checking [password]. Doesn't sign out; the caller does. */
     suspend fun deleteAccount(password: String)
+    /** The same for Google and Facebook accounts, confirmed with a fresh token from that provider. */
+    suspend fun deleteAccount(provider: SocialProvider, token: String)
     fun signOut()
 
     /** A current ID token for FitHall's server, or null when signed out or accounts are off. */
@@ -41,10 +83,12 @@ object NoAccounts : AuthService {
     private fun unavailable(): Nothing = throw AuthException("Accounts aren't set up in this build.")
     override suspend fun signUp(email: String, password: String) = unavailable()
     override suspend fun signIn(email: String, password: String) = unavailable()
+    override suspend fun signInWithProvider(provider: SocialProvider, token: String) = unavailable()
     override suspend fun sendEmailVerification() = unavailable()
     override suspend fun reloadUser() = Unit
     override suspend fun sendPasswordReset(email: String) = unavailable()
     override suspend fun deleteAccount(password: String) = unavailable()
+    override suspend fun deleteAccount(provider: SocialProvider, token: String) = unavailable()
     override fun signOut() = Unit
     override suspend fun idToken(forceRefresh: Boolean): String? = null
 }

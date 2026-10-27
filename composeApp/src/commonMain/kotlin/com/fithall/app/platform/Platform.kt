@@ -58,3 +58,7 @@ expect fun rememberNotificationPermission(): NotificationPermission
 /** Handles the system back gesture while [enabled]; a no-op where there isn't one. */
 @Composable
 expect fun SystemBackHandler(enabled: Boolean, onBack: () -> Unit)
+
+/** Google and Facebook sign-in on this platform; [com.fithall.app.auth.NoSocialSignIn] where there's none. */
+@Composable
+expect fun rememberSocialSignIn(): com.fithall.app.auth.SocialSignIn

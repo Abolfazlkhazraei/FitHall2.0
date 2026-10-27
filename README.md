@@ -126,6 +126,20 @@ final attempt's tokens are counted.
 3. **Authentication → Sign-in method:** enable **Email/Password**. Under **Settings**, keep
    **Email enumeration protection** on. Under **Templates**, set the sender name and check the
    verification and password-reset emails.
+   - **Google:** enable **Google**, then in Project settings → your Android app add the SHA-1
+     fingerprints of your debug and release keys (`./gradlew signingReport`), and download
+     `google-services.json` again. The new file contains the web client ID the
+     "Continue with Google" button needs; without it the button is hidden.
+   - **Facebook:** create an app at https://developers.facebook.com (use case "Authenticate and
+     request data from users with Facebook Login"), add the Android platform with package
+     `com.fithall.app`, class `com.fithall.app.MainActivity` and your key hashes. Enable
+     **Facebook** in Firebase with the app's App ID and App secret, and paste Firebase's OAuth
+     redirect URI into Facebook Login → Settings. Then add `FACEBOOK_APP_ID` and
+     `FACEBOOK_CLIENT_TOKEN` (App settings → Advanced) to `local.properties`. Without them the
+     "Continue with Facebook" button is hidden. Facebook requires the app to be switched to Live
+     before people outside your developer team can sign in.
+   - Google and Facebook accounts don't go through email verification; the server accepts them
+     as verified.
 4. **Crashlytics** and **Analytics:** open both for the app. In Google Analytics, set data
    retention (Admin → Data collection → Data retention) and put it in the privacy policy.
 5. Start the server with `FIREBASE_PROJECT_ID` (and `FIREBASE_WEB_API_KEY` for the web deletion

@@ -55,3 +55,6 @@ actual fun rememberNotificationPermission(): NotificationPermission = remember {
 
 @Composable
 actual fun SystemBackHandler(enabled: Boolean, onBack: () -> Unit) = Unit
+
+@Composable
+actual fun rememberSocialSignIn(): com.fithall.app.auth.SocialSignIn = com.fithall.app.auth.NoSocialSignIn

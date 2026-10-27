@@ -1,4 +1,7 @@
 [versions]
+androidx-credentials = "1.6.0"
+googleid = "1.2.1"
+facebook = "18.3.0"
 agp = "8.13.2"
 android-compileSdk = "36"
 android-minSdk = "26"
@@ -34,6 +37,10 @@ materialIconsExtended = "1.7.3"
 commonmark = "0.24.0"
 
 [libraries]
+androidx-credentials = { module = "androidx.credentials:credentials", version.ref = "androidx-credentials" }
+androidx-credentials-playServices = { module = "androidx.credentials:credentials-play-services-auth", version.ref = "androidx-credentials" }
+googleid = { module = "com.google.android.libraries.identity.googleid:googleid", version.ref = "googleid" }
+facebook-login = { module = "com.facebook.android:facebook-login", version.ref = "facebook" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
 kotlin-testJunit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version.ref = "kotlin" }
 junit = { module = "junit:junit", version.ref = "junit" }

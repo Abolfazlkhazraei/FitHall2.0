@@ -5,7 +5,7 @@ code; 👤 = needs an action from you outside the code.
 
 | # | Item | Status | Where / what's left |
 |---|---|---|---|
-| 1 | Real login and logout | ✅ | Firebase Authentication (email + password) through its REST API: `composeApp/.../auth/`. Log out in Profile → Account. The server checks the Firebase ID token on every AI request (`server/.../FirebaseAuth.kt`). 👤 Enable Email/Password in the Firebase console. |
+| 1 | Real login and logout | ✅ | Firebase Authentication (email + password, Google, Facebook) through its REST API: `composeApp/.../auth/`. Log out in Profile → Account. The server checks the Firebase ID token on every AI request (`server/.../FirebaseAuth.kt`). 👤 Enable Email/Password in the Firebase console; for Google and Facebook see README → Firebase, step 3. |
 | 2 | Password reset | ✅ | "Forgot password?" on the log-in screen. Firebase sends the email; the app never says whether an account exists. 60-second resend cooldown. |
 | 3 | Email verification | ✅ | Sent on sign-up; the app waits on the "Check your email" screen until it's verified, and the server refuses AI requests from unverified accounts. 👤 Customise the email template in Firebase. |
 | 4 | Loading states | ✅ | Spinners in every auth button, `LoadingCard` (with a "still working" note after 20 s) for AI requests, progress in the delete dialog. |

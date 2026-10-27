@@ -33,6 +33,11 @@ class AuthViewModel(val auth: AuthService, private val clock: () -> Long = ::now
         run(problem) { auth.signIn(email.trim(), password) }
     }
 
+    /** Google or Facebook, for both signing in and signing up. */
+    fun signInWith(provider: SocialProvider, social: SocialSignIn) = run(null) {
+        auth.signInWithProvider(provider, social.token(provider))
+    }
+
     fun signUp(email: String, password: String, confirmation: String, acceptedTerms: Boolean) {
         val problem = AuthValidation.email(email)
             ?: AuthValidation.newPassword(password)
@@ -84,6 +89,13 @@ class AuthViewModel(val auth: AuthService, private val clock: () -> Long = ::now
         }
     }
 
+    /** For Google and Facebook accounts: the user confirms by signing in with the provider again. */
+    fun deleteAccount(provider: SocialProvider, social: SocialSignIn, wipeLocalData: () -> Unit) = run(null) {
+        auth.deleteAccount(provider, social.token(provider))
+        wipeLocalData()
+        auth.signOut()
+    }
+
     private fun startCooldown() = _ui.update { it.copy(resendAllowedAtMillis = clock() + RESEND_COOLDOWN_MILLIS) }
 
     private fun run(validationError: String?, action: suspend () -> Unit) {
@@ -98,6 +110,8 @@ class AuthViewModel(val auth: AuthService, private val clock: () -> Long = ::now
                 action()
             } catch (e: CancellationException) {
                 throw e
+            } catch (e: SignInCancelled) {
+                // The user backed out of Google or Facebook; nothing to report.
             } catch (e: AuthException) {
                 _ui.update { it.copy(error = e.message) }
             } catch (e: Exception) {

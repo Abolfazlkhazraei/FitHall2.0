@@ -53,11 +53,11 @@ import com.fithall.app.model.WorkoutDay
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun WorkoutScreen(state: AppState, viewModel: AppViewModel) {
+fun WorkoutScreen(state: AppState, viewModel: AppViewModel, onMinimize: () -> Unit = {}) {
     val plan = state.workoutPlan
     val profile = state.profile ?: return
     state.activeWorkout?.let { session ->
-        ActiveWorkoutScreen(session, state.workoutLogs, profile.units, viewModel)
+        ActiveWorkoutScreen(session, state.workoutLogs, profile.units, viewModel, onMinimize)
         return
     }
 

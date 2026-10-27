@@ -19,8 +19,15 @@ import java.security.cert.CertificateFactory
 import java.time.Duration
 import java.util.Base64
 
-/** A signed-in FitHall account, from a verified Firebase ID token. */
+/**
+ * A signed-in FitHall account, from a verified Firebase ID token. [emailVerified] is also true for
+ * Google and Facebook sign-ins: those accounts are already tied to a real identity, and Facebook
+ * doesn't vouch for emails, so such users would otherwise have no way in.
+ */
 data class FirebaseUser(val uid: String, val emailVerified: Boolean)
+
+/** Sign-in providers whose accounts count as verified. */
+private val TRUSTED_PROVIDERS = setOf("google.com", "facebook.com")
 
 /** Signing keys by key id ("kid"). */
 fun interface PublicKeySource {
@@ -64,7 +71,8 @@ class FirebaseTokenVerifier(
                 (claims.long("iat") ?: Long.MAX_VALUE) <= now + CLOCK_SKEW_SECONDS &&
                 (claims.long("auth_time") ?: Long.MAX_VALUE) <= now + CLOCK_SKEW_SECONDS
             if (!valid) return null
-            FirebaseUser(uid, emailVerified = claims["email_verified"]?.jsonPrimitive?.booleanOrNull == true)
+            val provider = (claims["firebase"] as? JsonObject)?.string("sign_in_provider")
+            FirebaseUser(uid, emailVerified = claims["email_verified"]?.jsonPrimitive?.booleanOrNull == true || provider in TRUSTED_PROVIDERS)
         } catch (e: Exception) {
             // Malformed tokens (bad base64, JSON, key) are simply invalid.
             null

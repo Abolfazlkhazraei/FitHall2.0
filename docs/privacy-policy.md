@@ -18,7 +18,8 @@ FitHall uses, where it goes, and the choices you have.
 
 ## The short version
 
-- You sign in with an **email address and password**, managed by Google Firebase Authentication.
+- You sign in with an **email address and password**, or with **Google** or **Facebook**, managed by
+  Google Firebase Authentication.
 - What you log (profile, meals, workouts, weigh-ins, plans, chats) is **stored on your phone**,
   kept separately for each account that signs in on it.
 - When you use an AI feature, the data that feature needs is sent over an encrypted connection
@@ -39,7 +40,7 @@ FitHall uses, where it goes, and the choices you have.
 | Meal photos | Photos you take or choose for meal analysis | Sent for analysis only. Camera photos are deleted from the app's storage straight after they're processed; FitHall doesn't keep them. |
 | Meal descriptions | What you type or say, e.g. "two eggs and toast" | Sent for analysis only |
 | Coach messages | Your chat with the AI coach | On your phone; sent to generate replies |
-| Account | Your email address, a password (stored only as a secure hash by Firebase), whether your email is verified, and a random account ID | Google Firebase Authentication |
+| Account | Your email address, a password (stored only as a secure hash by Firebase) or, if you use Google or Facebook, your ID with that service and the name and photo it shares, whether your email is verified, and a random account ID | Google Firebase Authentication |
 | Device token | A random identifier created when the app is first used | On your phone; sent with each request |
 | Barcodes | The number on a product you scan | Sent to Open Food Facts to look up the product |
 
@@ -52,7 +53,12 @@ FitHall doesn't show ads, doesn't collect the advertising ID, and doesn't sell y
 
 **Your account.** When you sign up, your email address and password go to Google Firebase
 Authentication, which stores the account for us as our service provider and sends the
-verification and password-reset emails. Each request to our server includes a short-lived
+verification and password-reset emails. If you choose **Continue with Google** or **Continue with
+Facebook**, that service confirms who you are and shares your email address, name and profile
+photo with Firebase; we don't use the name or photo, and we never see your Google or Facebook
+password. Facebook Login runs on your phone only while you sign in, with its automatic event
+logging and advertising-ID collection turned off. Google's and Facebook's own privacy policies
+cover what they do when you sign in with them. Each request to our server includes a short-lived
 sign-in token so we can check that it comes from a verified account and apply usage limits per
 account. Your account isn't linked to your logs on our side: those stay on your phone.
 

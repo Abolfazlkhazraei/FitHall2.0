@@ -1,5 +1,15 @@
 package com.fithall.app.ui
 
+import com.fithall.app.auth.SocialSignIn
+import com.fithall.app.auth.SocialProvider
+import com.fithall.app.auth.NoSocialSignIn
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.vector.addPathNodes
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.material3.Surface
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -174,6 +184,7 @@ fun AuthScreen(
     initialMode: AuthMode,
     privacyPolicyUrl: String,
     termsUrl: String,
+    social: SocialSignIn = NoSocialSignIn,
 ) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
     var mode by rememberSaveable { mutableStateOf(initialMode) }
@@ -215,6 +226,20 @@ fun AuthScreen(
         )
         if (mode == AuthMode.RESET) {
             Text("Enter your account's email and we'll send you a link to choose a new password.", color = Brand.onGradientMuted)
+        }
+        if (mode != AuthMode.RESET && social.available.isNotEmpty()) {
+            social.available.forEach { provider ->
+                SocialButton(provider, enabled = !ui.busy) {
+                    submitted = false
+                    viewModel.signInWith(provider, social)
+                }
+            }
+            LegalLine(termsUrl, privacyPolicyUrl)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                HorizontalDivider(Modifier.weight(1f), color = Palette.line)
+                Text("or with email", style = MaterialTheme.typography.labelMedium, color = Brand.onGradientMuted, modifier = Modifier.padding(horizontal = 12.dp))
+                HorizontalDivider(Modifier.weight(1f), color = Palette.line)
+            }
         }
         FormCard {
             OutlinedTextField(
@@ -300,6 +325,67 @@ fun AuthScreen(
             TextButton(onClick = { switchTo(target) }, enabled = !ui.busy) {
                 Text(action, color = Color.White, fontWeight = FontWeight.SemiBold)
             }
+        }
+    }
+}
+
+/** "Continue with Google" / "Continue with Facebook", in each brand's own colours. */
+@Composable
+private fun SocialButton(provider: SocialProvider, enabled: Boolean, onClick: () -> Unit) {
+    val (container, content) = when (provider) {
+        // Google's dark-theme button: near-black with a light outline.
+        SocialProvider.GOOGLE -> Color(0xFF131314) to Color(0xFFE3E3E3)
+        SocialProvider.FACEBOOK -> Color(0xFF1877F2) to Color.White
+    }
+    Surface(
+        onClick = onClick,
+        enabled = enabled,
+        shape = RoundedCornerShape(26.dp),
+        color = container,
+        contentColor = content,
+        border = if (provider == SocialProvider.GOOGLE) BorderStroke(1.dp, Color(0xFF8E918F)) else null,
+        modifier = Modifier.fillMaxWidth().height(52.dp),
+    ) {
+        Row(horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+            when (provider) {
+                SocialProvider.GOOGLE -> Icon(GoogleLogo, null, tint = Color.Unspecified, modifier = Modifier.size(20.dp))
+                SocialProvider.FACEBOOK -> Box(
+                    Modifier.size(22.dp).clip(CircleShape).background(Color.White),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("f", color = Color(0xFF1877F2), fontWeight = FontWeight.ExtraBold, fontSize = 17.sp, modifier = Modifier.offset(x = 1.dp, y = 1.dp))
+                }
+            }
+            Spacer(Modifier.width(12.dp))
+            Text("Continue with ${provider.label}", style = MaterialTheme.typography.titleSmall)
+        }
+    }
+}
+
+/** Google's "G", from its sign-in branding guidelines. */
+private val GoogleLogo: ImageVector by lazy {
+    ImageVector.Builder("GoogleLogo", 20.dp, 20.dp, 48f, 48f).apply {
+        addPath(addPathNodes("M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"), fill = SolidColor(Color(0xFFEA4335)))
+        addPath(addPathNodes("M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"), fill = SolidColor(Color(0xFF4285F4)))
+        addPath(addPathNodes("M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"), fill = SolidColor(Color(0xFFFBBC05)))
+        addPath(addPathNodes("M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"), fill = SolidColor(Color(0xFF34A853)))
+    }.build()
+}
+
+/** Signing up with Google or Facebook skips the terms checkbox, so the same consent is stated here. */
+@Composable
+private fun LegalLine(termsUrl: String, privacyUrl: String) {
+    val uriHandler = LocalUriHandler.current
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+        Text(
+            "By continuing with Google or Facebook, you confirm you're 18 or older and agree to the Terms of Use and Privacy Policy.",
+            style = MaterialTheme.typography.bodySmall,
+            color = Brand.onGradientMuted,
+            textAlign = TextAlign.Center,
+        )
+        Row {
+            if (termsUrl.isNotBlank()) TextButton(onClick = { uriHandler.openUri(termsUrl) }) { Text("Terms") }
+            if (privacyUrl.isNotBlank()) TextButton(onClick = { uriHandler.openUri(privacyUrl) }) { Text("Privacy") }
         }
     }
 }
@@ -430,6 +516,9 @@ fun AccountSection(
     authViewModel: AuthViewModel,
     onLogOut: () -> Unit,
     wipeLocalData: () -> Unit,
+    /** Set for Google and Facebook accounts, which confirm deletion with that provider instead of a password. */
+    provider: SocialProvider? = null,
+    social: SocialSignIn = NoSocialSignIn,
 ) {
     val ui by authViewModel.ui.collectAsStateWithLifecycle()
     var confirmLogOut by remember { mutableStateOf(false) }
@@ -444,7 +533,11 @@ fun AccountSection(
             HSpace(12.dp)
             Column(Modifier.weight(1f)) {
                 Text(email, style = MaterialTheme.typography.bodyLarge, maxLines = 1)
-                Text("Signed in", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    provider?.let { "Signed in with ${it.label}" } ?: "Signed in",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
         OutlinedButton(onClick = { confirmLogOut = true }, modifier = Modifier.fillMaxWidth()) {
@@ -483,26 +576,37 @@ fun AccountSection(
                         "This permanently deletes your FitHall account and everything FitHall stores on this phone for it: " +
                             "profile, meals, workouts, weigh-ins, plans, check-ins and coach chat. It can't be undone.",
                     )
-                    PasswordField(
-                        value = password,
-                        onChange = { password = it },
-                        label = "Password",
-                        error = ui.error,
-                        last = true,
-                        onDone = { authViewModel.deleteAccount(password, wipeLocalData) },
-                        enabled = !ui.busy,
-                    )
-                    Text(
-                        "Forgot your password? Log out, tap \"Forgot password?\" to reset it, then come back here.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    if (provider != null) {
+                        Text("To confirm, sign in with ${provider.label} again.", fontWeight = FontWeight.SemiBold)
+                        ui.error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
+                    } else {
+                        PasswordField(
+                            value = password,
+                            onChange = { password = it },
+                            label = "Password",
+                            error = ui.error,
+                            last = true,
+                            onDone = { authViewModel.deleteAccount(password, wipeLocalData) },
+                            enabled = !ui.busy,
+                        )
+                        Text(
+                            "Forgot your password? Log out, tap \"Forgot password?\" to reset it, then come back here.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             },
             confirmButton = {
-                TextButton(onClick = { authViewModel.deleteAccount(password, wipeLocalData) }, enabled = !ui.busy) {
+                TextButton(
+                    onClick = {
+                        if (provider != null) authViewModel.deleteAccount(provider, social, wipeLocalData)
+                        else authViewModel.deleteAccount(password, wipeLocalData)
+                    },
+                    enabled = !ui.busy,
+                ) {
                     if (ui.busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                    else Text("Delete account", color = MaterialTheme.colorScheme.error)
+                    else Text(provider?.let { "Confirm with ${it.label}" } ?: "Delete account", color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = { TextButton(onClick = { deleting = false }, enabled = !ui.busy) { Text("Cancel") } },

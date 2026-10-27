@@ -14,6 +14,7 @@ import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
+import io.ktor.http.encodeURLParameter
 import io.ktor.http.isSuccess
 import io.ktor.http.parameters
 import kotlinx.coroutines.CancellationException
@@ -56,6 +57,7 @@ class FirebaseAuthService(
         val uid: String,
         val email: String,
         val emailVerified: Boolean,
+        val provider: String = PASSWORD_PROVIDER,
         val idToken: String,
         val refreshToken: String,
         val expiresAtMillis: Long,
@@ -91,6 +93,27 @@ class FirebaseAuthService(
         val response = call("accounts:signInWithPassword", credentials(email, password))
         save(sessionFrom(response, emailVerified = false))
         reloadUser()
+    }
+
+    override suspend fun signInWithProvider(provider: SocialProvider, token: String) {
+        val response = signInWithIdp(provider, token)
+        val verified = response["emailVerified"]?.jsonPrimitive?.booleanOrNull == true
+        save(sessionFrom(response, emailVerified = verified, provider = provider.id))
+    }
+
+    /** Exchanges a Google ID token or Facebook access token for a Firebase session. */
+    private suspend fun signInWithIdp(provider: SocialProvider, token: String): JsonObject {
+        val response = call("accounts:signInWithIdp", buildJsonObject {
+            put("postBody", "${provider.tokenParam}=${token.encodeURLParameter()}&providerId=${provider.id}")
+            put("requestUri", "http://localhost")
+            put("returnIdpCredential", true)
+            put("returnSecureToken", true)
+        })
+        // The email already has an account that signs in another way; Firebase won't merge them silently.
+        if (response["needConfirmation"]?.jsonPrimitive?.booleanOrNull == true) {
+            throw AuthException("There's already a FitHall account for this email. Log in the way you did before.")
+        }
+        return response
     }
 
     override suspend fun sendEmailVerification() {
@@ -133,6 +156,17 @@ class FirebaseAuthService(
         call("accounts:delete", buildJsonObject { put("idToken", token) })
     }
 
+    override suspend fun deleteAccount(provider: SocialProvider, token: String) {
+        val current = session ?: throw AuthException(SIGNED_OUT)
+        // Firebase only deletes after a recent sign-in, so sign in again with the provider.
+        val fresh = signInWithIdp(provider, token)
+        if (fresh.string("localId") != current.uid) {
+            throw AuthException("That's a different ${provider.label} account. Choose the one you use for FitHall.")
+        }
+        val freshToken = fresh.string("idToken") ?: throw AuthException(GENERIC)
+        call("accounts:delete", buildJsonObject { put("idToken", freshToken) })
+    }
+
     override fun signOut() {
         session = null
         store.put(SESSION_KEY, null)
@@ -172,10 +206,11 @@ class FirebaseAuthService(
         put("returnSecureToken", true)
     }
 
-    private fun sessionFrom(response: JsonObject, emailVerified: Boolean) = Session(
+    private fun sessionFrom(response: JsonObject, emailVerified: Boolean, provider: String = PASSWORD_PROVIDER) = Session(
         uid = response.string("localId") ?: throw AuthException(GENERIC),
         email = response.string("email") ?: "",
         emailVerified = emailVerified,
+        provider = provider,
         idToken = response.string("idToken") ?: throw AuthException(GENERIC),
         refreshToken = response.string("refreshToken") ?: throw AuthException(GENERIC),
         expiresAtMillis = clock() + (response.string("expiresIn")?.toLongOrNull() ?: 3600) * 1000,
@@ -188,7 +223,7 @@ class FirebaseAuthService(
     }
 
     private fun stateOf(value: Session?): AuthState =
-        value?.let { AuthState.SignedIn(AuthUser(it.uid, it.email, it.emailVerified)) } ?: AuthState.SignedOut
+        value?.let { AuthState.SignedIn(AuthUser(it.uid, it.email, it.emailVerified, it.provider)) } ?: AuthState.SignedOut
 
     private suspend fun call(method: String, body: JsonObject): JsonObject = try {
         post("$IDENTITY_URL/$method?key=$apiKey") {
@@ -239,6 +274,8 @@ class FirebaseAuthService(
             "TOO_MANY_ATTEMPTS_TRY_LATER" -> "Too many attempts. Wait a few minutes and try again."
             "WEAK_PASSWORD" -> "Choose a stronger password: at least ${AuthValidation.MIN_PASSWORD} characters with letters and numbers."
             "INVALID_EMAIL", "MISSING_EMAIL" -> "Enter a valid email address."
+            "INVALID_IDP_RESPONSE", "INVALID_CREDENTIAL_OR_PROVIDER_ID" -> "That sign-in didn't work. Please try again."
+            "FEDERATED_USER_ID_ALREADY_LINKED" -> "That account is already linked to another FitHall account."
             "MISSING_PASSWORD" -> "Enter your password."
             "OPERATION_NOT_ALLOWED", "ADMIN_ONLY_OPERATION" -> "Email sign-in isn't enabled for FitHall yet. Please try again later."
             "TOKEN_EXPIRED", "USER_NOT_FOUND", "INVALID_REFRESH_TOKEN", "INVALID_ID_TOKEN", "CREDENTIAL_TOO_OLD_LOGIN_AGAIN" ->

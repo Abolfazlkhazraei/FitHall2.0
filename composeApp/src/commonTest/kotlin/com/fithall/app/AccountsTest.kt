@@ -5,6 +5,9 @@ import com.fithall.app.auth.AuthState
 import com.fithall.app.auth.AuthValidation
 import com.fithall.app.auth.AuthViewModel
 import com.fithall.app.auth.FirebaseAuthService
+import com.fithall.app.auth.SocialSignIn
+import com.fithall.app.auth.SocialProvider
+import com.fithall.app.auth.SignInCancelled
 import com.fithall.app.data.InMemoryAccountStorage
 import com.fithall.app.data.InMemoryKeyValueStore
 import com.fithall.app.model.ActivityLevel
@@ -21,7 +24,11 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.OutgoingContent
 import io.ktor.http.headersOf
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -173,6 +180,71 @@ class AccountsTest {
         assertFailsWith<AuthException> { auth.deleteAccount("wrong") }
         assertTrue("accounts:delete" !in methods)
         auth.deleteAccount("strong123")
+        assertEquals("accounts:delete", methods.last())
+    }
+
+    // ---- Google and Facebook ----
+
+    private class FixedToken(private val token: String? = "fb-token") : SocialSignIn {
+        override val available = listOf(SocialProvider.GOOGLE, SocialProvider.FACEBOOK)
+        override suspend fun token(provider: SocialProvider): String = token ?: throw SignInCancelled()
+    }
+
+    @Test
+    fun facebookSignInCreatesAVerifiedSession() = runTest {
+        val bodies = mutableListOf<String>()
+        val auth = firebase { request ->
+            bodies += request.bodyText()
+            json("""{"localId":"uid9","email":"ana@example.com","emailVerified":false,"idToken":"id9","refreshToken":"r9","expiresIn":"3600"}""")
+        }
+        auth.signInWithProvider(SocialProvider.FACEBOOK, "fb token&x")
+        assertTrue(bodies.single().contains("access_token=fb%20token%26x&providerId=facebook.com"))
+        val user = (auth.state.value as AuthState.SignedIn).user
+        assertEquals("uid9", user.uid)
+        assertEquals(SocialProvider.FACEBOOK, user.socialProvider)
+        // Facebook doesn't vouch for emails, but the account is still let in (the server agrees).
+        assertEquals(false, user.emailVerified)
+        assertTrue(user.verified)
+    }
+
+    @Test
+    fun anEmailThatAlreadyHasAnAccountIsNotMergedSilently() = runTest {
+        val auth = firebase { json("""{"email":"ana@example.com","needConfirmation":true}""") }
+        val error = assertFailsWith<AuthException> { auth.signInWithProvider(SocialProvider.GOOGLE, "g") }
+        assertTrue(error.message!!.contains("already a FitHall account"))
+        assertEquals(AuthState.SignedOut, auth.state.value)
+    }
+
+    @Test
+    fun closingTheGooglePickerIsNotAnError() {
+        Dispatchers.setMain(UnconfinedTestDispatcher())
+        try {
+            val vm = AuthViewModel(firebase { error("no request expected") })
+            vm.signInWith(SocialProvider.GOOGLE, FixedToken(token = null))
+            assertNull(vm.ui.value.error)
+            assertEquals(false, vm.ui.value.busy)
+        } finally {
+            Dispatchers.resetMain()
+        }
+    }
+
+    @Test
+    fun deletingASocialAccountNeedsTheSameAccountAgain() = runTest {
+        val methods = mutableListOf<String>()
+        var who = "uid9"
+        val auth = firebase { request ->
+            methods += request.method()
+            when (request.method()) {
+                "accounts:signInWithIdp" -> json("""{"localId":"$who","email":"ana@example.com","idToken":"id9","refreshToken":"r9","expiresIn":"3600"}""")
+                else -> json("{}")
+            }
+        }
+        auth.signInWithProvider(SocialProvider.GOOGLE, "g1")
+        who = "someone-else"
+        assertFailsWith<AuthException> { auth.deleteAccount(SocialProvider.GOOGLE, "g2") }
+        assertTrue("accounts:delete" !in methods)
+        who = "uid9"
+        auth.deleteAccount(SocialProvider.GOOGLE, "g3")
         assertEquals("accounts:delete", methods.last())
     }
 
