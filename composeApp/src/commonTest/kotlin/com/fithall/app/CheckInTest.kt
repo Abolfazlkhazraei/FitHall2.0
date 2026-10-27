@@ -28,6 +28,7 @@ import com.fithall.app.model.WeightEntry
 import com.fithall.app.model.WorkoutDay
 import com.fithall.app.model.WorkoutLog
 import com.fithall.app.model.WorkoutPlan
+import com.fithall.app.platform.todayKey
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -187,10 +188,11 @@ class CheckInTest {
         val repo = AppRepository(InMemoryKeyValueStore()).apply {
             profile = this@CheckInTest.profile
             workoutPlan = plan
-            // Pending check-in as if the AI had already answered.
+            // Pending check-in as if the AI had already answered. Dated today, so applying it
+            // leaves no check-in due whatever day the test runs.
             history.saveCheckIn(
                 WeeklyCheckIn(
-                    "c1", "2026-10-10", 1,
+                    "c1", todayKey(), 1,
                     result(
                         calories = 150,
                         changes = listOf(

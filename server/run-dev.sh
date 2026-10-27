@@ -16,5 +16,12 @@ SECRET_FILE=server/.dev-token-secret
 export TOKEN_SECRET="$(cat "$SECRET_FILE")"
 export INTEGRITY_MODE="${INTEGRITY_MODE:-off}"
 
+# Accounts: when the app has Firebase (composeApp/google-services.json), the server must check
+# sign-ins for the same project. Both values are public identifiers, not secrets.
+if [ -f composeApp/google-services.json ] && [ -z "${FIREBASE_PROJECT_ID:-}" ]; then
+  export FIREBASE_PROJECT_ID="$(python3 -c 'import json;print(json.load(open("composeApp/google-services.json"))["project_info"]["project_id"])')"
+  export FIREBASE_WEB_API_KEY="$(python3 -c 'import json;print(json.load(open("composeApp/google-services.json"))["client"][0]["api_key"][0]["current_key"])')"
+fi
+
 echo "Starting FitHall server on http://localhost:8080. Ctrl+C to stop."
 exec ./gradlew :server:run

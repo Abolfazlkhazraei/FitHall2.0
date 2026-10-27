@@ -1,7 +1,7 @@
 <!--
 DRAFT. Have it reviewed by a lawyer before publishing, fill in every [BRACKETED] item, and
-host it on a public https page (for example GitHub Pages or your own site). Set that address as
-PRIVACY_POLICY_URL so the app links to it. If you change what data the app sends, update this
+publish it. The FitHall server serves this file at /privacy, and the app links there unless
+PRIVACY_POLICY_URL is set. If you change what data the app sends, update this
 policy and bump PrivacyPolicy.VERSION in AppRepository.kt so users are asked to agree again.
 -->
 
@@ -18,12 +18,16 @@ FitHall uses, where it goes, and the choices you have.
 
 ## The short version
 
-- What you log (profile, meals, workouts, weigh-ins, plans, chats) is **stored on your phone**.
+- You sign in with an **email address and password**, managed by Google Firebase Authentication.
+- What you log (profile, meals, workouts, weigh-ins, plans, chats) is **stored on your phone**,
+  kept separately for each account that signs in on it.
 - When you use an AI feature, the data that feature needs is sent over an encrypted connection
   to **our server**, which passes it to **Anthropic's Claude AI** to generate the answer. Our
   server doesn't store it.
 - **Your name never leaves your phone.**
-- You can **export** or **delete** all your data in the app at any time (Profile → Your data).
+- You can **export** or **delete** all your data in the app at any time (Profile → Your data),
+  and **delete your account** in the app or at [/delete-account](/delete-account).
+- Usage analytics and crash reports are **optional and off** unless you turn them on.
 - FitHall is for adults aged **18 and over**.
 
 ## 1. Data FitHall uses
@@ -35,14 +39,22 @@ FitHall uses, where it goes, and the choices you have.
 | Meal photos | Photos you take or choose for meal analysis | Sent for analysis only. Camera photos are deleted from the app's storage straight after they're processed; FitHall doesn't keep them. |
 | Meal descriptions | What you type or say, e.g. "two eggs and toast" | Sent for analysis only |
 | Coach messages | Your chat with the AI coach | On your phone; sent to generate replies |
+| Account | Your email address, a password (stored only as a secure hash by Firebase), whether your email is verified, and a random account ID | Google Firebase Authentication |
 | Device token | A random identifier created when the app is first used | On your phone; sent with each request |
 | Barcodes | The number on a product you scan | Sent to Open Food Facts to look up the product |
 
+| Usage analytics (only if you opt in) | Which screens you open and which features you use (for example "meal logged by photo", "plan generated"), app version, phone model, approximate country, and a random app-instance ID. Never your health values, meal contents, name or email. | Sent to Google Analytics for Firebase |
 | Crash reports (only if you opt in) | What the app was doing when it crashed or hit an unexpected error (technical stack trace), phone model, Android version, app version, and a random Crashlytics installation ID | Sent to Google Firebase Crashlytics |
 
-FitHall doesn't use advertising, advertising IDs or analytics trackers, and it doesn't sell your data.
+FitHall doesn't show ads, doesn't collect the advertising ID, and doesn't sell your data.
 
 ## 2. How each feature uses your data
+
+**Your account.** When you sign up, your email address and password go to Google Firebase
+Authentication, which stores the account for us as our service provider and sends the
+verification and password-reset emails. Each request to our server includes a short-lived
+sign-in token so we can check that it comes from a verified account and apply usage limits per
+account. Your account isn't linked to your logs on our side: those stay on your phone.
 
 **AI features** (meal estimates from photos or descriptions, workout and meal plans, weekly
 check-ins, coach chat). The app sends the information the feature needs over HTTPS to our server
@@ -55,7 +67,7 @@ and your coach messages.
 
 **Our server does not store this data.** It keeps no database of users or their content and
 doesn't log request contents. For rate limiting and cost monitoring it keeps, in memory only, the
-number of requests and the estimated AI cost per device token for the current day, and, for up
+number of requests and the estimated AI cost per account (or device token) for the current day, and, for up
 to one hour, the IP addresses that created new device tokens. Its logs record each AI request's
 type, token counts and estimated cost, without any content or device token. Our hosting provider, [HOSTING PROVIDER], may keep standard connection logs (such
 as IP addresses) under its own policy for [RETENTION PERIOD].
@@ -87,9 +99,18 @@ of your health and fitness data. Turning the option off stops reports and delete
 haven't been sent yet. Google keeps crash reports for [VERIFY: currently 90 days per the
 Crashlytics documentation]; see https://firebase.google.com/support/privacy.
 
+**Usage analytics (optional).** If you tick "share usage analytics" on the consent screen, or
+turn it on later in Profile → Your data, the app sends usage events to Google Analytics for
+Firebase so we can see which features are used and where people get stuck. Events never include
+your health values, meal contents, name or email, and we don't set a user ID or collect the
+advertising ID. Turning it off stops collection. Google keeps analytics data for [VERIFY: the
+retention period set in your Google Analytics property, e.g. 2 months].
+
 **Backups.** If Android backup is turned on for your device, Android may include FitHall's data
-in your Google account backup, encrypted, so it can be restored on a new phone. You can manage
-this in your phone's settings.
+in your Google account backup so it can be restored on a new phone. On Android 12 and later,
+FitHall only allows this backup when it is end-to-end encrypted with your screen lock. Your
+sign-in and device token are never backed up: after a restore, sign in again to see your data.
+You can manage backup in your phone's settings.
 
 ## 3. Why we process your data (legal bases)
 
@@ -99,22 +120,29 @@ this in your phone's settings.
 - **Providing the service you asked for** (contract) for the device token and request handling.
 - **Our legitimate interest** in keeping the service secure and preventing abuse, for rate
   limiting and device checks.
-- **Your consent** for crash reports, which are optional and off unless you turn them on.
+- **Providing the service you asked for** (contract) for your account.
+- **Your consent** for crash reports and usage analytics, which are optional and off unless you
+  turn them on.
 
 ## 4. How long data is kept
 
 - **On your phone:** until you delete it in the app, clear the app's data, or uninstall it.
+- **Your account:** until you delete it. Deleting it removes it from Firebase Authentication.
 - **On our server:** not stored. Usage counters reset daily; sign-up IP addresses are held in
   memory for up to one hour.
 - **Anthropic:** [FILL IN FROM ANTHROPIC'S TERMS].
 - **Crash reports (if enabled):** kept by Firebase Crashlytics for [VERIFY: 90 days].
+- **Analytics (if enabled):** kept by Google Analytics for [VERIFY: your property's retention setting].
 
 ## 5. Your choices and rights
 
 - **Export:** Profile → Your data → Export my data gives you everything as a JSON file.
-- **Delete:** Profile → Your data → Delete all my data permanently erases everything FitHall holds
-  on your phone. Because our server stores none of it, this removes your data from FitHall
-  completely. It also withdraws your consent.
+- **Delete your data:** Profile → Your data → Delete all my data permanently erases everything
+  FitHall holds on your phone for your account. It also withdraws your consent.
+- **Delete your account:** Profile → Account → Delete account deletes your Firebase account and
+  everything FitHall holds on your phone for it. You can also delete your account on the web at
+  [/delete-account](/delete-account). Because our server stores none of your logs, this removes
+  your data from FitHall completely.
 - Depending on where you live (for example the EU, UK or US states such as California or
   Washington), you may have further rights, such as access, correction, restriction, objection,
   or complaining to your data protection authority. Contact us at [PRIVACY CONTACT EMAIL].

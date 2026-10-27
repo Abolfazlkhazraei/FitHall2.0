@@ -1,5 +1,6 @@
 package com.fithall.app.server
 
+import com.anthropic.models.messages.OutputConfig
 import com.fithall.app.ai.AiErrorKind
 import com.fithall.app.ai.AiException
 import com.fithall.app.ai.AiService
@@ -51,7 +52,10 @@ fun main() {
     val config = ServerConfig.fromEnv()
     val costs = CostTracker(config.limits)
     embeddedServer(Netty, port = config.port, host = "0.0.0.0") {
-        fitHallModule(config, ClaudeAiService(config.anthropicApiKey, usage = costs), costs = costs)
+        val planEffort = OutputConfig.Effort.of(config.planEffort)
+        log.info("Plan effort: {}", config.planEffort)
+        log.info("Accounts: {}", config.firebaseProjectId?.let { "Firebase project $it (sign-in and verified email required)" } ?: "off (anonymous devices)")
+        fitHallModule(config, ClaudeAiService(config.anthropicApiKey, planEffort, usage = costs), costs = costs)
     }.start(wait = true)
 }
 
@@ -72,6 +76,9 @@ fun Application.fitHallModule(
     tokens: DeviceTokens = DeviceTokens(config.tokenSecret),
     challenges: Challenges = Challenges(config.tokenSecret),
     costs: CostTracker = CostTracker(config.limits),
+    /** Null when accounts are off; AI requests then need only a device token. */
+    users: FirebaseTokenVerifier? = config.firebaseProjectId?.let { FirebaseTokenVerifier(it) },
+    pages: Pages = Pages(config.firebaseWebApiKey),
     // Created eagerly so a missing Google credential fails at startup, not on the first sign-up.
     integrity: IntegrityVerifier =
         if (config.integrity.mode == IntegrityMode.OFF) NoIntegrityVerifier else GooglePlayIntegrityVerifier(config.integrity),
@@ -91,6 +98,14 @@ fun Application.fitHallModule(
         exception<BadRequestException> { call, _ ->
             call.respond(HttpStatusCode.BadRequest, ApiError(ErrorCodes.INVALID_REQUEST, "The request was malformed."))
         }
+        // A friendly page for people following a broken link, JSON for the app.
+        status(HttpStatusCode.NotFound) { call, status ->
+            if (call.wantsHtml()) call.respondPage(pages.notFound, status)
+            else call.respond(status, ApiError(ErrorCodes.NOT_FOUND, "Not found."))
+        }
+        status(HttpStatusCode.MethodNotAllowed) { call, status ->
+            call.respond(status, ApiError(ErrorCodes.INVALID_REQUEST, "Method not allowed."))
+        }
         exception<Throwable> { call, e ->
             log.error("Unhandled error", e)
             call.respond(HttpStatusCode.InternalServerError, ApiError(ErrorCodes.AI_ERROR, "Something went wrong. Please try again."))
@@ -99,6 +114,7 @@ fun Application.fitHallModule(
 
     routing {
         get(Api.HEALTH) { call.respondText("ok") }
+        pages(pages)
 
         // Spend report for you, not the app. Disabled unless ADMIN_TOKEN is set.
         get(ADMIN_USAGE_PATH) {
@@ -126,31 +142,31 @@ fun Application.fitHallModule(
             call.respond(RegisterResponse(tokens.issue(tier), fullAccess = tier == AccessTier.FULL))
         }
 
-        aiPost<MealPhotoRequest, _>(Api.MEAL_PHOTO, AiOperation.MEAL_PHOTO, limiter, tokens, maxBodyBytes = PHOTO_BODY_LIMIT) { req ->
+        aiPost<MealPhotoRequest, _>(Api.MEAL_PHOTO, AiOperation.MEAL_PHOTO, limiter, tokens, users, maxBodyBytes = PHOTO_BODY_LIMIT) { req ->
             val bytes = Validation.jpeg(req.imageBase64)
             Validation.maxLength(req.note, Api.MAX_NOTE_CHARS, "note")
             charge { ai.analyzeMeal(bytes, req.note) }
         }
-        aiPost<MealTextRequest, _>(Api.MEAL_TEXT, AiOperation.MEAL_TEXT, limiter, tokens) { req ->
+        aiPost<MealTextRequest, _>(Api.MEAL_TEXT, AiOperation.MEAL_TEXT, limiter, tokens, users) { req ->
             Validation.text(req.description, Api.MAX_DESCRIPTION_CHARS, "description")
             charge { ai.analyzeMealDescription(req.description.trim()) }
         }
-        aiPost<WorkoutPlanRequest, _>(Api.WORKOUT_PLAN, AiOperation.WORKOUT_PLAN, limiter, tokens) { req ->
+        aiPost<WorkoutPlanRequest, _>(Api.WORKOUT_PLAN, AiOperation.WORKOUT_PLAN, limiter, tokens, users) { req ->
             Validation.profile(req.profile)
             Validation.maxLength(req.recentTraining, Api.MAX_TRAINING_CHARS, "recentTraining")
             charge { ai.generateWorkoutPlan(req.profile, req.recentTraining) }
         }
-        aiPost<NutritionPlanRequest, _>(Api.NUTRITION_PLAN, AiOperation.NUTRITION_PLAN, limiter, tokens) { req ->
+        aiPost<NutritionPlanRequest, _>(Api.NUTRITION_PLAN, AiOperation.NUTRITION_PLAN, limiter, tokens, users) { req ->
             Validation.profile(req.profile)
             Validation.targets(req.targets)
             charge { ai.generateNutritionPlan(req.profile, req.targets) }
         }
-        aiPost<CoachRequest, _>(Api.COACH_REPLY, AiOperation.COACH_REPLY, limiter, tokens) { req ->
+        aiPost<CoachRequest, _>(Api.COACH_REPLY, AiOperation.COACH_REPLY, limiter, tokens, users) { req ->
             Validation.maxLength(req.context, Api.MAX_CONTEXT_CHARS, "context")
             Validation.chat(req.history)
             charge { CoachResponse(ai.coachReply(req.context, req.history)) }
         }
-        aiPost<CheckInRequest, _>(Api.CHECK_IN, AiOperation.CHECK_IN, limiter, tokens) { req ->
+        aiPost<CheckInRequest, _>(Api.CHECK_IN, AiOperation.CHECK_IN, limiter, tokens, users) { req ->
             Validation.text(req.report, Api.MAX_REPORT_CHARS, "report")
             charge { ai.weeklyCheckIn(req.report) }
         }
@@ -167,8 +183,10 @@ class AiCall(
     private val device: DeviceIdentity,
     private val operation: AiOperation,
     private val limiter: UsageLimiter,
+    /** The signed-in account, when accounts are on; limits then apply per account, not per install. */
+    private val user: FirebaseUser? = null,
 ) {
-    private val deviceId get() = device.deviceId
+    private val deviceId get() = user?.let { "user:${it.uid}" } ?: device.deviceId
 
     suspend fun <T> charge(block: suspend () -> T): T {
         when (val decision = limiter.tryAcquire(deviceId, operation, device.tier)) {
@@ -192,14 +210,16 @@ private inline fun <reified Req : Any, reified Res : Any> Route.aiPost(
     operation: AiOperation,
     limiter: UsageLimiter,
     tokens: DeviceTokens,
+    users: FirebaseTokenVerifier?,
     maxBodyBytes: Long = DEFAULT_BODY_LIMIT,
     crossinline handle: suspend AiCall.(Req) -> Res,
 ) {
     post(path) {
         val device = authenticate(call, tokens)
+        val user = users?.let { authenticateUser(call, it) }
         checkBodySize(call, maxBodyBytes)
         val request = call.receive<Req>()
-        val result = AiCall(device, operation, limiter).handle(request)
+        val result = AiCall(device, operation, limiter, user).handle(request)
         call.respond(result)
     }
 }
@@ -209,6 +229,19 @@ private fun authenticate(call: ApplicationCall, tokens: DeviceTokens): DeviceIde
     return token?.let(tokens::verify)
         ?: throw ApiException(HttpStatusCode.Unauthorized, ErrorCodes.UNAUTHORIZED, "Please sign in again.")
 }
+
+/** The account behind the request: a valid Firebase ID token whose email has been verified. */
+private fun authenticateUser(call: ApplicationCall, users: FirebaseTokenVerifier): FirebaseUser {
+    val user = call.request.headers[Api.USER_TOKEN_HEADER]?.trim()?.let(users::verify)
+        ?: throw ApiException(HttpStatusCode.Unauthorized, ErrorCodes.SIGN_IN_REQUIRED, "Your sign-in has expired. Please log in again.")
+    if (!user.emailVerified) {
+        throw ApiException(HttpStatusCode.Forbidden, ErrorCodes.EMAIL_NOT_VERIFIED, "Verify your email address to use AI features.")
+    }
+    return user
+}
+
+private fun ApplicationCall.wantsHtml(): Boolean =
+    request.headers[HttpHeaders.Accept]?.contains("text/html") == true
 
 private fun checkBodySize(call: ApplicationCall, maxBytes: Long) {
     val length = call.request.headers[HttpHeaders.ContentLength]?.toLongOrNull()

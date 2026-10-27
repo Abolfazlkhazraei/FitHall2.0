@@ -14,7 +14,8 @@ offline banner appears, and AI requests fail straight away with a Retry instead 
 
 The app never talks to Claude directly. It talks to the FitHall server in [`server/`](server),
 which holds the Anthropic API key, checks every request, and enforces per-device and global
-usage limits. The app contains no key.
+usage limits. The app contains no key. People sign in with an email and password (Firebase
+Authentication) before using the app; see "Firebase" below.
 
 ### 1. Run the server
 
@@ -28,6 +29,12 @@ export TOKEN_SECRET=$(openssl rand -base64 48)   # any random string of 32+ char
 
 On Windows PowerShell use `$env:ANTHROPIC_API_KEY="sk-ant-..."` and `$env:TOKEN_SECRET="..."`, then
 `.\gradlew.bat :server:run`. The server listens on port 8080; `GET /health` returns `ok`.
+For development, `server/run-dev.ps1` (Windows) or `server/run-dev.sh` does all of this, asks for
+the key without echoing it, and turns accounts on automatically when
+`composeApp/google-services.json` exists.
+
+The server also publishes the web pages Google Play asks for: `/privacy` and `/terms` (rendered
+from `docs/privacy-policy.md` and `docs/terms.md`), `/delete-account`, and a friendly 404 page.
 
 | Variable | Default | |
 |---|---|---|
@@ -35,7 +42,7 @@ On Windows PowerShell use `$env:ANTHROPIC_API_KEY="sk-ant-..."` and `$env:TOKEN_
 | `TOKEN_SECRET` | required | Signs device tokens. Changing it makes every install re-register automatically. |
 | `PORT` | `8080` | |
 | `TRUST_PROXY` | `false` | Set `true` behind a load balancer that sets `X-Forwarded-For`, so per-IP limits see real client IPs. |
-| `DEVICE_UNITS_PER_DAY` | `40` | Per install. Costs: text meal 1, coach 1, photo meal 2, meal plan 3, workout plan 4, check-in 4. |
+| `DEVICE_UNITS_PER_DAY` | `40` | Per account (per install when accounts are off). Costs: text meal 1, coach 1, photo meal 2, meal plan 3, workout plan 4, check-in 4. |
 | `DEVICE_REQUESTS_PER_MINUTE` | `10` | |
 | `GLOBAL_UNITS_PER_DAY` | `20000` | Hard daily cap on what the server will spend. |
 | `REGISTRATIONS_PER_IP_PER_HOUR` | `20` | Slows down token farming. |
@@ -45,6 +52,9 @@ On Windows PowerShell use `$env:ANTHROPIC_API_KEY="sk-ant-..."` and `$env:TOKEN_
 | `INTEGRITY_REQUIRE_DEVICE` | `true` | Require `MEETS_DEVICE_INTEGRITY`; `false` accepts `MEETS_BASIC_INTEGRITY`. |
 | `INTEGRITY_REQUIRE_LICENSED` | `false` | Require the app to have been installed from Google Play. |
 | `APP_CERT_SHA256` | none | Optional comma-separated signing certificate digests, as Play reports them. |
+| `PLAN_EFFORT` | `medium` | Claude effort for workout and meal plans: `low`, `medium`, `high`, `xhigh` or `max`. Lower is faster and cheaper; check-ins always use `high`. |
+| `FIREBASE_PROJECT_ID` | none | Turns accounts on: AI requests then need a signed-in user with a verified email. Must match the app's `google-services.json`. |
+| `FIREBASE_WEB_API_KEY` | none | Lets the `/delete-account` web page delete accounts. The `current_key` from `google-services.json`. |
 | `ADMIN_TOKEN` | none | Enables the spend report at `GET /admin/usage` (32+ characters). See "AI costs" below. |
 | `GOOGLE_APPLICATION_CREDENTIALS` | none | Service account key used to decode integrity tokens (needed unless `INTEGRITY_MODE=off`). |
 
@@ -78,7 +88,8 @@ and check-in requests can take up to a couple of minutes, so allow long request 
 
 **Before scaling out:** usage limits are kept in memory, so they're per server instance. Run a
 single instance, or move the counters in `UsageLimiter` to a shared store such as Redis. Device
-tokens are anonymous and can't be revoked individually.
+tokens are anonymous and can't be revoked individually; accounts can be disabled or deleted in
+the Firebase console, which locks them out within an hour (when their ID token expires).
 
 ### AI costs
 
@@ -106,18 +117,30 @@ https://www.anthropic.com/pricing, and use the Anthropic Console's usage page an
 limit as the source of truth. When a request is declined and retried on a fallback model, only the
 final attempt's tokens are counted.
 
-### Crash reporting (Firebase Crashlytics)
+### Firebase: accounts, crash reporting and analytics
 
 1. Create a project at https://console.firebase.google.com and add an Android app with package
    name `com.fithall.app`.
 2. Download `google-services.json` into `composeApp/` (it's git-ignored; on CI, write it from a
    secret before building).
-3. In the Firebase console, open Crashlytics for the app.
+3. **Authentication → Sign-in method:** enable **Email/Password**. Under **Settings**, keep
+   **Email enumeration protection** on. Under **Templates**, set the sender name and check the
+   verification and password-reset emails.
+4. **Crashlytics** and **Analytics:** open both for the app. In Google Analytics, set data
+   retention (Admin → Data collection → Data retention) and put it in the privacy policy.
+5. Start the server with `FIREBASE_PROJECT_ID` (and `FIREBASE_WEB_API_KEY` for the web deletion
+   page); the dev scripts read both from `google-services.json`.
+6. Recommended: in Google Cloud → APIs & Services → Credentials, restrict the Android API key to
+   Android apps with package `com.fithall.app` and your debug and release SHA-1 fingerprints. The
+   app sends the matching headers. The web deletion page uses the same key from a browser, so if
+   you restrict it, create a separate browser key restricted to your server's domain for
+   `FIREBASE_WEB_API_KEY`.
 
-Without the file the app builds normally with crash reporting off; release builds require it.
-Reports are only sent for users who opt in (consent screen or Profile → Your data), carry no user
-id or health data, and include non-fatal reports for unexpected errors. Release builds upload the
-R8 mapping file automatically, so stack traces are readable.
+Without the file the app builds with accounts, crash reporting and analytics off (everyone uses
+one local profile); release builds require it. Crash reports and analytics are only sent for users
+who opt in (consent screen or Profile → Your data), never carry a user id or health data, and
+analytics never collect the advertising ID. Release builds upload the R8 mapping file
+automatically, so stack traces are readable.
 
 ### 4. Turn on Play Integrity
 
@@ -148,7 +171,8 @@ also shrunk with R8, so the APK is about a tenth of the debug size. Add to `loca
 
 ```properties
 RELEASE_BACKEND_URL=https://api.your-domain.com
-PRIVACY_POLICY_URL=https://your-domain.com/privacy
+# Optional: only if the policy is hosted somewhere other than RELEASE_BACKEND_URL/privacy
+# PRIVACY_POLICY_URL=https://your-domain.com/privacy
 RELEASE_STORE_FILE=/path/to/upload-key.jks
 RELEASE_STORE_PASSWORD=...
 RELEASE_KEY_ALIAS=upload
@@ -184,11 +208,23 @@ screenshots for the store listing.
 
 ## Storage
 
-Meals, workouts, weigh-ins, check-ins and coach chat are stored in SQLite (`fithall.db`) through
+Each account that signs in on a phone gets its own storage: a database `fithall_<uid>.db` and
+preferences `fithall_<uid>.xml`, so one person never sees another's logs (the on-device
+equivalent of row-level security; the server stores no user data, so there's nothing to secure
+there). Logging out keeps the data for when that account logs back in. The device-level
+`fithall.xml` holds only the device token and sign-in session. Data from before accounts is handed
+to the first account that signs in.
+
+Meals, workouts, weigh-ins, check-ins and coach chat are stored in SQLite through
 [SQLDelight](https://sqldelight.github.io/sqldelight/). Each row keeps the columns used for lookups
 (id, day, time) plus the full record as JSON, so every change writes one row. The profile, plans,
-the workout in progress, targets, consent and the device token stay in SharedPreferences. Installs
-from before the database copy their old data in once, on first launch.
+the workout in progress, targets and consent stay in SharedPreferences. Installs from before the
+database copy their old data in once, on first launch.
+
+**Backups:** Android backs up each account's database and preferences to the user's Google account
+(`res/xml/data_extraction_rules.xml`; on Android 12+ only when end-to-end encrypted), so they come
+back on a new phone after signing in. The device token and sign-in session are excluded. The
+server has no database to back up; Firebase backs up the accounts.
 
 The schema is in `composeApp/src/commonMain/sqldelight/com/fithall/app/db/History.sq`. **After the
 first release, never edit a table in place:** add a numbered migration file (`1.sqm`, `2.sqm`...)
@@ -200,13 +236,18 @@ everything in memory.
 - The app opens with a consent screen that explains what's sent where, and asks for explicit
   agreement to processing health data plus confirmation of 18+. Bumping `PrivacyPolicy.VERSION`
   (in `AppRepository.kt`) asks everyone again.
-- Profile → Your data has the privacy policy link, **Export my data** (a JSON file through the
-  share sheet) and **Delete all my data** (wipes the device storage, cached files and device
-  token, and withdraws consent).
+- Sign-up requires accepting the Terms of Use and Privacy Policy and confirming 18+.
+- Profile → Account has **Log out** and **Delete account** (re-checks the password, deletes the
+  Firebase account and everything stored on the phone for it). `/delete-account` on the server
+  does the same from a browser, which is the link Google Play asks for.
+- Profile → Your data has the privacy policy and terms links, the crash-report and analytics
+  switches, **Export my data** (a JSON file through the share sheet) and **Delete all my data**
+  (wipes the account's storage and cached files, and withdraws consent).
 - The user's name never leaves the device, camera photos are deleted after processing, and the
   server stores no user data.
-- [`docs/privacy-policy.md`](docs/privacy-policy.md) is a draft policy matching this behaviour:
-  fill in the bracketed items, have it reviewed, and host it at `PRIVACY_POLICY_URL`.
+- [`docs/privacy-policy.md`](docs/privacy-policy.md) and [`docs/terms.md`](docs/terms.md) are
+  drafts matching this behaviour: fill in the bracketed items and have them reviewed. The server
+  publishes them at `/privacy` and `/terms`.
   [`docs/play-data-safety.md`](docs/play-data-safety.md) has the matching Play Console answers.
 
 ## Safety rules

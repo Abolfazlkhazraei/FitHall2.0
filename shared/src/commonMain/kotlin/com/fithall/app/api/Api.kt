@@ -13,6 +13,10 @@ import kotlinx.serialization.Serializable
  * Registration: POST [Api.CHALLENGE] for a one-time nonce, get a Play Integrity token for that
  * nonce on the device, then POST [Api.REGISTER] with both. Devices that can't produce a token
  * still register, with whatever access the server's integrity mode allows.
+ *
+ * Accounts: when the server has Firebase configured, every AI request must also carry the
+ * signed-in user's Firebase ID token in [Api.USER_TOKEN_HEADER], and the account's email must be
+ * verified. The device token still decides the integrity tier; usage limits apply per account.
  */
 object Api {
     const val CHALLENGE = "/v1/devices/challenge"
@@ -24,6 +28,12 @@ object Api {
     const val COACH_REPLY = "/v1/coach/reply"
     const val CHECK_IN = "/v1/check-ins"
     const val HEALTH = "/health"
+    const val USER_TOKEN_HEADER = "X-FitHall-User"
+
+    // Public web pages served by the server (linked from the app and the Play listing).
+    const val PRIVACY_PAGE = "/privacy"
+    const val TERMS_PAGE = "/terms"
+    const val DELETE_ACCOUNT_PAGE = "/delete-account"
 
     // Input limits, enforced by the server. The app stays well inside them.
     const val MAX_IMAGE_BYTES = 4 * 1024 * 1024
@@ -92,4 +102,7 @@ object ErrorCodes {
     const val AI_ERROR = "ai_error"
     const val PAYLOAD_TOO_LARGE = "payload_too_large"
     const val INTEGRITY_FAILED = "integrity_failed"
+    const val SIGN_IN_REQUIRED = "sign_in_required"
+    const val EMAIL_NOT_VERIFIED = "email_not_verified"
+    const val NOT_FOUND = "not_found"
 }

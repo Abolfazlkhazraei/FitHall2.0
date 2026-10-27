@@ -28,6 +28,7 @@ import io.ktor.client.engine.HttpClientEngine
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.bearerAuth
+import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
@@ -47,12 +48,15 @@ import kotlin.io.encoding.Base64
 /**
  * Calls the FitHall server, which holds the Anthropic key. The install registers itself
  * anonymously on first use, proving it's the genuine app with [attestation], and keeps its
- * device token in [store].
+ * device token in [store]. With accounts on, each request also carries the signed-in user's ID
+ * token from [userToken].
  */
 class BackendAiService(
     baseUrl: String,
     private val store: KeyValueStore,
     private val attestation: DeviceAttestation = NoAttestation,
+    /** The signed-in user's Firebase ID token (null without accounts); true forces a refresh. */
+    private val userToken: suspend (forceRefresh: Boolean) -> String? = { null },
     /** Only for tests; production picks the platform engine automatically. */
     engine: HttpClientEngine? = null,
 ) : AiService {
@@ -99,11 +103,17 @@ class BackendAiService(
     private suspend inline fun <reified Req : Any, reified Res : Any> post(path: String, body: Req): Res {
         try {
             var token = currentToken()
-            var response = send(path, token, body)
+            var user = userToken(false)
+            var response = send(path, token, user, body)
             if (response.status == HttpStatusCode.Unauthorized) {
-                // The server's signing secret changed, or the token was lost: register again once.
-                token = newToken(stale = token)
-                response = send(path, token, body)
+                if (response.errorCode() == ErrorCodes.SIGN_IN_REQUIRED) {
+                    // The ID token expired early or was revoked: get a fresh one once.
+                    user = userToken(true)
+                } else {
+                    // The server's signing secret changed, or the token was lost: register again once.
+                    token = newToken(stale = token)
+                }
+                response = send(path, token, user, body)
             }
             if (!response.status.isSuccess()) throw response.toAiException()
             return response.body()
@@ -120,9 +130,10 @@ class BackendAiService(
         }
     }
 
-    private suspend inline fun <reified Req : Any> send(path: String, token: String, body: Req): HttpResponse =
+    private suspend inline fun <reified Req : Any> send(path: String, token: String, user: String?, body: Req): HttpResponse =
         client.post(baseUrl + path) {
             bearerAuth(token)
+            user?.let { header(Api.USER_TOKEN_HEADER, it) }
             contentType(ContentType.Application.Json)
             setBody(body)
         }
@@ -158,11 +169,14 @@ class BackendAiService(
             ErrorCodes.DAILY_LIMIT -> AiErrorKind.DAILY_LIMIT
             ErrorCodes.RATE_LIMITED, ErrorCodes.SERVICE_BUSY -> AiErrorKind.RATE_LIMITED
             ErrorCodes.REFUSED -> AiErrorKind.REFUSED
-            ErrorCodes.INVALID_REQUEST, ErrorCodes.PAYLOAD_TOO_LARGE, ErrorCodes.INTEGRITY_FAILED -> AiErrorKind.INVALID_REQUEST
+            ErrorCodes.INVALID_REQUEST, ErrorCodes.PAYLOAD_TOO_LARGE, ErrorCodes.INTEGRITY_FAILED,
+            ErrorCodes.SIGN_IN_REQUIRED, ErrorCodes.EMAIL_NOT_VERIFIED -> AiErrorKind.INVALID_REQUEST
             else -> AiErrorKind.UNAVAILABLE
         }
         return AiException(error?.message ?: "FitHall's servers had a problem (${status.value}). Please try again.", kind)
     }
+
+    private suspend fun HttpResponse.errorCode(): String? = runCatching { body<ApiError>().code }.getOrNull()
 
     /** The AI doesn't need the user's name, so it never leaves the device. */
     private fun UserProfile.withoutName() = copy(name = "")

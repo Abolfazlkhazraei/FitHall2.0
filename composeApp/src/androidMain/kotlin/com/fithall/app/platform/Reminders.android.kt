@@ -21,12 +21,8 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
-import app.cash.sqldelight.driver.android.AndroidSqliteDriver
 import com.fithall.app.MainActivity
 import com.fithall.app.R
-import com.fithall.app.data.AppRepository
-import com.fithall.app.data.SqlHistoryStore
-import com.fithall.app.db.FitHallDatabase
 import com.fithall.app.domain.CheckInReminder
 import com.fithall.app.domain.ReminderScheduler
 import java.time.Duration
@@ -40,9 +36,9 @@ class CheckInReminderWorker(context: Context, params: WorkerParameters) : Corout
     override suspend fun doWork(): Result {
         val context = applicationContext
         if (!canNotify(context)) return Result.success()
-        val driver = AndroidSqliteDriver(FitHallDatabase.Schema, context, DATABASE_NAME)
+        // Nobody signed in: nothing to remind about.
+        val (repository, driver) = AndroidAccountStorage.openActive(context) ?: return Result.success()
         try {
-            val repository = AppRepository(SharedPreferencesStore(context), SqlHistoryStore(driver))
             val key = CheckInReminder.reminderToSend(repository, todayKey()) ?: return Result.success()
             postNotification(context)
             repository.lastReminderKey = key
@@ -81,6 +77,7 @@ class CheckInReminderWorker(context: Context, params: WorkerParameters) : Corout
     }
 }
 
+/** The database from before accounts, and the one used by builds without accounts. */
 const val DATABASE_NAME = "fithall.db"
 
 private fun canNotify(context: Context): Boolean {

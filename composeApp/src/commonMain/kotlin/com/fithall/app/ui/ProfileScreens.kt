@@ -74,8 +74,12 @@ fun ProfileScreen(
     adjustment: TargetAdjustment,
     remindersOn: Boolean,
     crashReportsOn: Boolean,
+    analyticsOn: Boolean,
     privacyPolicyUrl: String,
+    termsUrl: String,
     viewModel: AppViewModel,
+    /** Profile → Account (sign-in details, log out, delete account); empty without accounts. */
+    account: @Composable () -> Unit = {},
 ) {
     val targets = MacroCalculator.targets(profile, adjustment)
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
@@ -134,7 +138,8 @@ fun ProfileScreen(
             },
         )
         RemindersSection(remindersOn, viewModel)
-        YourDataSection(privacyPolicyUrl, crashReportsOn, viewModel)
+        account()
+        YourDataSection(privacyPolicyUrl, termsUrl, crashReportsOn, analyticsOn, viewModel)
     }
     }
 }

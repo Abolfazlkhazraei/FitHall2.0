@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 12+: each account's preferences (fithall_<id>.xml) and database (fithall_<id>.db) are
+  backed up so they come back on a new phone after signing in. The device-level fithall.xml holds
+  the device token and the sign-in session, which must never move to another device.
+  Cloud backups are only allowed when they're end-to-end encrypted with the screen lock.
+-->
+<data-extraction-rules>
+    <cloud-backup disableIfNoEncryptionCapabilities="true">
+        <exclude domain="sharedpref" path="fithall.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="fithall.xml" />
+    </device-transfer>
+</data-extraction-rules>

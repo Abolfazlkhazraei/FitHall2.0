@@ -24,6 +24,14 @@ ktor {
     }
 }
 
+// The privacy policy and terms are written in docs/ and served as web pages by the server.
+tasks.processResources {
+    from(rootProject.file("docs")) {
+        include("privacy-policy.md", "terms.md")
+        into("pages")
+    }
+}
+
 dependencies {
     implementation(projects.shared)
     implementation(libs.anthropic.java)
@@ -37,6 +45,8 @@ dependencies {
     implementation(libs.kotlinx.serializationJson)
     implementation(libs.logback)
     implementation(libs.googleAuth)
+    implementation(libs.commonmark)
+    implementation(libs.commonmark.tables)
 
     testImplementation(libs.ktor.serverTestHost)
     testImplementation(libs.ktor.clientContentNegotiation)

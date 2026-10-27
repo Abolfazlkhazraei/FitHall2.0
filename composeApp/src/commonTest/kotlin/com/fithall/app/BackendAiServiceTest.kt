@@ -22,6 +22,7 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import com.fithall.app.api.ErrorCodes
 import kotlin.test.assertTrue
 
 class BackendAiServiceTest {
@@ -32,9 +33,10 @@ class BackendAiServiceTest {
     private fun service(
         store: InMemoryKeyValueStore = InMemoryKeyValueStore(),
         attestation: DeviceAttestation = NoAttestation,
+        userToken: suspend (Boolean) -> String? = { null },
         handler: suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData,
     ) = BackendAiService(
-        "https://api.example.com/", store, attestation,
+        "https://api.example.com/", store, attestation, userToken,
         MockEngine { request ->
             requests += request
             // Every registration starts with a challenge.
@@ -48,6 +50,41 @@ class BackendAiServiceTest {
         respond(body, status, jsonHeaders)
 
     private val mealJson = """{"mealName":"Toast","items":[{"name":"Toast","portion":"1 slice","calories":80,"proteinG":3,"carbsG":15,"fatG":1}],"confidence":"high","notes":""}"""
+
+    @Test
+    fun sendsTheSignedInUsersTokenAndRefreshesItOnceWhenRejected() = runTest {
+        val refreshes = mutableListOf<Boolean>()
+        var mealCalls = 0
+        val ai = service(userToken = { force -> refreshes += force; if (force) "fresh" else "stale" }) { request ->
+            when (request.url.encodedPath) {
+                Api.REGISTER -> json("""{"token":"device"}""")
+                Api.MEAL_TEXT -> {
+                    mealCalls++
+                    if (request.headers[Api.USER_TOKEN_HEADER] == "fresh") json(mealJson)
+                    else json("""{"code":"${ErrorCodes.SIGN_IN_REQUIRED}","message":"Please log in again."}""", HttpStatusCode.Unauthorized)
+                }
+                else -> error("unexpected ${request.url}")
+            }
+        }
+        assertEquals("Toast", ai.analyzeMealDescription("toast").mealName)
+        assertEquals(listOf(false, true), refreshes)
+        assertEquals(2, mealCalls)
+        // The device token was fine, so the install didn't register again.
+        assertEquals(1, requests.count { it.url.encodedPath == Api.REGISTER })
+    }
+
+    @Test
+    fun unverifiedEmailIsNotRetried() = runTest {
+        val ai = service(userToken = { "token" }) { request ->
+            when (request.url.encodedPath) {
+                Api.REGISTER -> json("""{"token":"device"}""")
+                else -> json("""{"code":"${ErrorCodes.EMAIL_NOT_VERIFIED}","message":"Verify your email address to use AI features."}""", HttpStatusCode.Forbidden)
+            }
+        }
+        val error = assertFailsWith<AiException> { ai.analyzeMealDescription("toast") }
+        assertEquals(AiErrorKind.INVALID_REQUEST, error.kind)
+        assertEquals("Verify your email address to use AI features.", error.message)
+    }
 
     @Test
     fun registersOnceThenSendsTheToken() = runTest {

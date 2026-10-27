@@ -116,6 +116,7 @@ class AppViewModel(
     private val reminders: ReminderScheduler = NoReminders,
     private val connectivity: Connectivity = AlwaysOnline,
     private val crashReporter: CrashReporter = NoCrashReporter,
+    private val analytics: Analytics = NoAnalytics,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(
@@ -140,6 +141,7 @@ class AppViewModel(
         if (repository.checkInReminders) reminders.schedule()
         // Crash reports only with the current consent and the user's opt-in.
         crashReporter.setEnabled(!_state.value.needsConsent && _state.value.consent?.crashReports == true)
+        analytics.setEnabled(!_state.value.needsConsent && _state.value.consent?.analytics == true)
     }
     val state: StateFlow<AppState> = _state.asStateFlow()
 
@@ -149,12 +151,22 @@ class AppViewModel(
 
     // ---- Privacy ----
 
-    fun acceptConsent(crashReports: Boolean = false) {
-        val consent = PrivacyConsent(PrivacyPolicy.VERSION, nowMillis(), crashReports)
+    fun acceptConsent(crashReports: Boolean = false, analytics: Boolean = false) {
+        val consent = PrivacyConsent(PrivacyPolicy.VERSION, nowMillis(), crashReports, analytics)
         repository.consent = consent
         crashReporter.setEnabled(crashReports)
+        this.analytics.setEnabled(analytics)
         _state.update { it.copy(consent = consent) }
     }
+
+    fun setAnalytics(enabled: Boolean) {
+        val consent = _state.value.consent?.copy(analytics = enabled) ?: return
+        repository.consent = consent
+        analytics.setEnabled(enabled)
+        _state.update { it.copy(consent = consent) }
+    }
+
+    fun trackScreen(name: String) = analytics.screen(name)
 
     fun setCrashReports(enabled: Boolean) {
         val consent = _state.value.consent?.copy(crashReports = enabled) ?: return
@@ -175,6 +187,7 @@ class AppViewModel(
         viewModelScope.coroutineContext.cancelChildren()
         reminders.cancel()
         crashReporter.setEnabled(false)
+        analytics.setEnabled(false)
         repository.clearAll()
         clearCaches()
         _state.value = AppState()
@@ -188,6 +201,7 @@ class AppViewModel(
         _state.update { it.copy(profile = profile) }
         // Plans were built for the old profile; generate fresh ones for a brand-new user.
         if (previous == null) {
+            analytics.event("onboarding_complete", mapOf("goal" to profile.goal.name.lowercase()))
             generateWorkoutPlan()
             generateNutritionPlan()
         }
@@ -275,8 +289,14 @@ class AppViewModel(
             dayKey = todayKey(),
             analysis = analysis,
         )
+        val method = when ((_state.value.scan as? ScanState.Result)?.source) {
+            is MealSource.Photo -> "photo"
+            is MealSource.Description -> "description"
+            else -> "barcode"
+        }
         repository.history.saveMeal(entry)
         _state.update { it.copy(meals = it.meals + entry, scan = ScanState.Idle, today = todayKey()) }
+        analytics.event("meal_logged", mapOf("method" to method))
     }
 
     fun cancelScan() = _state.update { it.copy(scan = ScanState.Idle) }
@@ -304,6 +324,7 @@ class AppViewModel(
                 .onSuccess { plan ->
                     repository.workoutPlan = plan
                     _state.update { it.copy(workoutPlan = plan) }
+                    analytics.event("plan_generated", mapOf("type" to "workout"))
                 }
                 .onFailure { e -> _state.update { it.copy(workoutPlanFailure = failure(e)) } }
             _state.update { it.copy(generatingWorkout = false) }
@@ -320,6 +341,7 @@ class AppViewModel(
                 .onSuccess { plan ->
                     repository.nutritionPlan = plan
                     _state.update { it.copy(nutritionPlan = plan) }
+                    analytics.event("plan_generated", mapOf("type" to "meal"))
                 }
                 .onFailure { e -> _state.update { it.copy(nutritionPlanFailure = failure(e)) } }
             _state.update { it.copy(generatingNutrition = false) }
@@ -389,6 +411,7 @@ class AppViewModel(
         repository.history.saveWorkout(finished)
         repository.activeWorkout = null
         _state.update { it.copy(workoutLogs = it.workoutLogs + finished, activeWorkout = null, today = todayKey()) }
+        analytics.event("workout_finished")
         return true
     }
 
@@ -462,6 +485,7 @@ class AppViewModel(
                         repository.history.saveCheckIn(created)
                     }
                     _state.update { s -> s.copy(checkIns = s.checkIns.replaceAll(superseded) + created) }
+                    analytics.event("check_in_completed")
                 }
                 .onFailure { e -> _state.update { it.copy(checkInFailure = failure(e)) } }
             _state.update { it.copy(runningCheckIn = false) }
@@ -539,6 +563,7 @@ class AppViewModel(
         val message = ChatMessage(ChatRole.USER, trimmed)
         repository.history.appendChat(message)
         _state.update { it.copy(chat = it.chat + message) }
+        analytics.event("coach_message_sent")
         requestCoachReply()
     }
 

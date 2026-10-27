@@ -8,14 +8,17 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.fithall.app.ai.AiService
 import com.fithall.app.ai.BackendAiService
 import com.fithall.app.ai.PlayIntegrityAttestation
-import app.cash.sqldelight.driver.android.AndroidSqliteDriver
-import com.fithall.app.data.AppRepository
-import com.fithall.app.data.SqlHistoryStore
-import com.fithall.app.db.FitHallDatabase
+import com.fithall.app.api.Api
+import com.fithall.app.auth.AuthService
+import com.fithall.app.auth.FirebaseAuthService
+import com.fithall.app.auth.NoAccounts
 import com.fithall.app.data.OpenFoodFactsDatabase
 import com.fithall.app.platform.AndroidConnectivity
 import com.fithall.app.platform.AndroidReminderScheduler
-import com.fithall.app.platform.DATABASE_NAME
+import com.fithall.app.platform.AndroidAccountStorage
+import com.fithall.app.platform.FirebaseAnalyticsTracker
+import com.fithall.app.platform.androidKeyHeaders
+import com.fithall.app.platform.firebaseApiKey
 import com.fithall.app.platform.FirebaseCrashReporter
 import com.fithall.app.platform.SharedPreferencesStore
 import com.fithall.app.platform.clearAppCaches
@@ -26,26 +29,34 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
+        // Device-level settings; each account's data is kept apart by AndroidAccountStorage.
         val store = SharedPreferencesStore(applicationContext)
-        val database = AndroidSqliteDriver(FitHallDatabase.Schema, applicationContext, DATABASE_NAME)
-        val repository = AppRepository(store, SqlHistoryStore(database))
+        val auth: AuthService = firebaseApiKey(applicationContext)
+            ?.let { FirebaseAuthService(it, store, androidKeyHeaders(applicationContext)) }
+            ?: NoAccounts
         val ai: AiService = BackendAiService(
             baseUrl = BuildConfig.BACKEND_URL,
             store = store,
             attestation = PlayIntegrityAttestation(applicationContext, BuildConfig.PLAY_CLOUD_PROJECT_NUMBER),
+            userToken = auth::idToken,
         )
+        val server = BuildConfig.BACKEND_URL.trimEnd('/')
 
         setContent {
             App(
-                repository = repository,
+                accounts = AndroidAccountStorage(applicationContext),
                 ai = ai,
+                auth = auth,
+                deviceStore = store,
                 foods = OpenFoodFactsDatabase(),
-                privacyPolicyUrl = BuildConfig.PRIVACY_POLICY_URL,
+                privacyPolicyUrl = BuildConfig.PRIVACY_POLICY_URL.ifBlank { server + Api.PRIVACY_PAGE },
+                termsUrl = server + Api.TERMS_PAGE,
                 clearCaches = { clearAppCaches(applicationContext) },
                 reminders = AndroidReminderScheduler(applicationContext),
                 openProgress = intent?.getStringExtra(EXTRA_OPEN) == OPEN_PROGRESS,
                 connectivity = AndroidConnectivity.get(applicationContext),
                 crashReporter = FirebaseCrashReporter(applicationContext),
+                analytics = FirebaseAnalyticsTracker(applicationContext),
             )
         }
     }

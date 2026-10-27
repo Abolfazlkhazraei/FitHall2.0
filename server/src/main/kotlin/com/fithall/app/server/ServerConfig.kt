@@ -12,8 +12,19 @@ data class ServerConfig(
     val integrity: IntegrityConfig = IntegrityConfig(),
     /** Enables GET /admin/usage with `Authorization: Bearer <token>`. Null disables it. */
     val adminToken: String? = null,
+    /** Claude effort for workout and meal plans: low, medium (default), high, xhigh or max. */
+    val planEffort: String = "medium",
+    /**
+     * Firebase project for FitHall accounts. When set, AI requests need a signed-in user with a
+     * verified email. Null leaves accounts off (local development without Firebase).
+     */
+    val firebaseProjectId: String? = null,
+    /** Firebase Web API key, used by the delete-account web page. Public, but kept out of the repo. */
+    val firebaseWebApiKey: String? = null,
 ) {
     companion object {
+        val EFFORTS = listOf("low", "medium", "high", "xhigh", "max")
+
         fun fromEnv(env: Map<String, String> = System.getenv()): ServerConfig {
             fun required(name: String) = env[name]?.takeIf { it.isNotBlank() }
                 ?: error("Missing required environment variable $name")
@@ -35,6 +46,11 @@ data class ServerConfig(
                     registrationsPerIpPerHour = int("REGISTRATIONS_PER_IP_PER_HOUR", defaults.registrationsPerIpPerHour),
                     limitedUnitsPerDay = int("LIMITED_UNITS_PER_DAY", defaults.limitedUnitsPerDay),
                 ),
+                planEffort = (env["PLAN_EFFORT"]?.trim()?.lowercase()?.ifEmpty { null } ?: "medium").also {
+                    require(it in EFFORTS) { "PLAN_EFFORT must be one of ${EFFORTS.joinToString()}" }
+                },
+                firebaseProjectId = env["FIREBASE_PROJECT_ID"]?.trim()?.ifEmpty { null },
+                firebaseWebApiKey = env["FIREBASE_WEB_API_KEY"]?.trim()?.ifEmpty { null },
                 adminToken = env["ADMIN_TOKEN"]?.takeIf { it.isNotBlank() }?.also {
                     require(it.length >= 32) { "ADMIN_TOKEN must be at least 32 characters" }
                 },

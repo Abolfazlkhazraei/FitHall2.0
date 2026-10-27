@@ -37,7 +37,8 @@ fun releaseSetting(name: String): String? =
     localProperties.getProperty(name)?.trim()?.ifEmpty { null } ?: System.getenv(name)?.trim()?.ifEmpty { null }
 
 val releaseBackendUrl = releaseSetting("RELEASE_BACKEND_URL")
-// Must be a public web page for the Play listing; the app links to it from the consent screen.
+// Optional: the server publishes docs/privacy-policy.md at <backend>/privacy, which the app links to
+// by default. Set this only to host the policy somewhere else.
 val privacyPolicyUrl = releaseSetting("PRIVACY_POLICY_URL")
 val releaseStoreFile = releaseSetting("RELEASE_STORE_FILE")?.let { rootProject.file(it) }
 val releaseStorePassword = releaseSetting("RELEASE_STORE_PASSWORD")
@@ -48,9 +49,8 @@ val hasReleaseSigning = releaseStoreFile != null && releaseStorePassword != null
 val releaseProblems: List<String> = buildList {
     if (releaseBackendUrl == null) add("RELEASE_BACKEND_URL is not set (your deployed server, e.g. https://api.fithall.app)")
     else if (!releaseBackendUrl.startsWith("https://")) add("RELEASE_BACKEND_URL must start with https:// (got $releaseBackendUrl)")
-    if (privacyPolicyUrl == null) add("PRIVACY_POLICY_URL is not set (the public page hosting docs/privacy-policy.md)")
-    else if (!privacyPolicyUrl.startsWith("https://")) add("PRIVACY_POLICY_URL must start with https:// (got $privacyPolicyUrl)")
-    if (!hasFirebaseConfig) add("composeApp/google-services.json is missing (download it from your Firebase project for crash reporting)")
+    if (privacyPolicyUrl != null && !privacyPolicyUrl.startsWith("https://")) add("PRIVACY_POLICY_URL must start with https:// (got $privacyPolicyUrl)")
+    if (!hasFirebaseConfig) add("composeApp/google-services.json is missing (download it from your Firebase project; accounts, crash reporting and analytics need it)")
     if (!hasReleaseSigning) add("Signing is not configured: set RELEASE_STORE_FILE, RELEASE_STORE_PASSWORD, RELEASE_KEY_ALIAS and RELEASE_KEY_PASSWORD")
     else if (releaseStoreFile?.exists() != true) add("RELEASE_STORE_FILE not found: $releaseStoreFile")
 }
@@ -85,6 +85,7 @@ kotlin {
             implementation(libs.androidx.splashscreen)
             implementation(project.dependencies.platform(libs.firebase.bom))
             implementation(libs.firebase.crashlytics)
+            implementation(libs.firebase.analytics)
             implementation(libs.playServices.codeScanner)
             implementation(libs.playIntegrity)
         }

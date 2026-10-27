@@ -3,8 +3,9 @@
 Suggested answers for Play Console, based on what the code does as of this commit. Re-check them
 whenever the app starts sending new data. Play's definitions: **collected** means it leaves the
 device (to you or a service provider); **shared** means it goes to a third party *other than* a
-service provider acting on your behalf. Anthropic is your service provider (it processes requests
-for you), so sending data to it is collection, not sharing. Open Food Facts receives only a
+service provider acting on your behalf. Anthropic and Google Firebase (Authentication, Crashlytics,
+Analytics) are your service providers (they process data for you), so sending data to them is
+collection, not sharing. Open Food Facts receives only a
 barcode, which isn't user data.
 
 ## Data collection and security
@@ -13,7 +14,9 @@ barcode, which isn't user data.
 |---|---|
 | Does your app collect or share any of the required user data types? | Yes |
 | Is all of the user data collected by your app encrypted in transit? | Yes (HTTPS; release builds refuse a non-https server) |
-| Do you provide a way for users to request that their data is deleted? | Yes: in the app, Profile → Your data → Delete all my data |
+| Do you provide a way for users to request that their data is deleted? | Yes: in the app (Profile → Account → Delete account) and on the web |
+| Does your app allow users to create an account? | Yes, with email and password |
+| Delete account URL | `https://<your server>/delete-account` |
 
 ## Data types
 
@@ -21,17 +24,21 @@ barcode, which isn't user data.
 |---|---|---|---|---|---|
 | Health and fitness → Health info (weight, height, injuries, dietary notes) | Yes | No | Yes | Optional (only when using AI features) | App functionality |
 | Health and fitness → Fitness info (workouts, activity level, goals) | Yes | No | Yes | Optional | App functionality |
+| Personal info → Email address | Yes | No | No | Required | App functionality, Account management |
+| Personal info → User IDs (Firebase account ID) | Yes | No | No | Required | App functionality, Account management, Fraud prevention, security and compliance |
 | Personal info → Other info (age, sex) | Yes | No | Yes | Optional | App functionality |
 | Photos and videos → Photos (meal photos) | Yes | No | Yes | Optional | App functionality |
 | Messages → Other in-app messages (coach chat) | Yes | No | Yes | Optional | App functionality |
-| Device or other IDs (random device token; Crashlytics installation ID if crash reports are on) | Yes | No | No | Required to use AI features | App functionality, Fraud prevention, security and compliance, Analytics |
+| Device or other IDs (random device token; Crashlytics and Analytics installation IDs if those are on) | Yes | No | No | Required to use AI features | App functionality, Fraud prevention, security and compliance, Analytics |
+| App activity → App interactions (screens opened, features used) | Yes | No | No | Optional (opt-in on the consent screen or in Profile) | Analytics |
 | App info and performance → Crash logs | Yes | No | No | Optional (opt-in on the consent screen or in Profile) | Analytics (diagnosing crashes) |
 | App info and performance → Diagnostics (phone model, Android version, app version) | Yes | No | No | Optional (same opt-in) | Analytics (diagnosing crashes) |
 
-Not collected: name (it stays on the device), email, location, contacts, financial info, audio
-(speech is converted to text by the phone's own speech service), app activity analytics,
-advertising ID. Firebase Crashlytics is Google acting as your service provider, so crash logs
-are collected, not shared. The app doesn't include Firebase Analytics.
+Not collected: name (it stays on the device), precise location, contacts, financial info, audio
+(speech is converted to text by the phone's own speech service), advertising ID (the AD_ID
+permission is removed and Analytics' ad ID collection is off). Google Analytics may derive an
+approximate country from the IP address; if you declare "Approximate location", purpose
+Analytics, optional.
 
 "Processed ephemerally" is yes for the health data, photos and messages because the server only
 uses them to answer the request and doesn't store them. **Confirm Anthropic's retention terms
@@ -49,8 +56,8 @@ whether Play still considers that ephemeral, and answer "No" if in doubt.
 ## Other Play Console items
 
 - **Target audience:** 18 and over.
-- **Privacy policy URL:** the public page where you host `docs/privacy-policy.md` (the same
-  address as `PRIVACY_POLICY_URL`).
+- **Privacy policy URL:** `https://<your server>/privacy` (or `PRIVACY_POLICY_URL` if you host it
+  elsewhere).
 - **Ads:** No.
-- **App access:** reviewers can use every feature without an account. The AI features need your
-  server to be running.
+- **App access:** an account is required. Create a verified test account for reviewers and give
+  its email and password under "App access". The AI features need your server to be running.

@@ -47,6 +47,11 @@ import java.util.Base64
 /** Implements the app's AI features with the Claude API. Runs on the server, which holds the key. */
 class ClaudeAiService(
     apiKey: String,
+    /**
+     * Effort for workout and meal plans. Lower effort is faster and cheaper; check-ins stay on high
+     * because they're weekly and need more judgement. See PLAN_EFFORT in ServerConfig.
+     */
+    private val planEffort: OutputConfig.Effort = OutputConfig.Effort.MEDIUM,
     /** Receives token counts for every response, refusals included. */
     private val usage: UsageRecorder = UsageRecorder {},
 ) : AiService {
@@ -84,7 +89,7 @@ class ClaudeAiService(
 
     override suspend fun generateWorkoutPlan(profile: UserProfile, recentTraining: String): WorkoutPlan {
         val params = baseParams(AiPrompts.WORKOUT_SYSTEM)
-            .outputConfig(structured(AiPrompts.WORKOUT_SCHEMA, OutputConfig.Effort.HIGH))
+            .outputConfig(structured(AiPrompts.WORKOUT_SCHEMA, planEffort))
             .addUserMessage(AiPrompts.workoutUserText(profile, recentTraining))
             .build()
         return decode(send(params), WorkoutPlan.serializer())
@@ -92,7 +97,7 @@ class ClaudeAiService(
 
     override suspend fun generateNutritionPlan(profile: UserProfile, targets: MacroTargets): NutritionPlan {
         val params = baseParams(AiPrompts.NUTRITION_SYSTEM)
-            .outputConfig(structured(AiPrompts.NUTRITION_SCHEMA, OutputConfig.Effort.HIGH))
+            .outputConfig(structured(AiPrompts.NUTRITION_SCHEMA, planEffort))
             .addUserMessage(AiPrompts.nutritionUserText(profile, targets))
             .build()
         return decode(send(params), NutritionPlan.serializer())

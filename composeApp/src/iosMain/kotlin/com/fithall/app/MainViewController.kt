@@ -2,7 +2,7 @@ package com.fithall.app
 
 import androidx.compose.ui.window.ComposeUIViewController
 import com.fithall.app.ai.BackendAiService
-import com.fithall.app.data.AppRepository
+import com.fithall.app.data.InMemoryAccountStorage
 import com.fithall.app.data.InMemoryKeyValueStore
 import platform.Foundation.NSBundle
 import platform.UIKit.UIViewController
@@ -19,7 +19,7 @@ private val BACKEND_URL: String =
 fun MainViewController(): UIViewController {
     // Created once, outside composition. iOS keeps data in memory only for now.
     val store = InMemoryKeyValueStore()
-    val repository = AppRepository(store)
+    val accounts = InMemoryAccountStorage()
     val ai = BackendAiService(BACKEND_URL, store)
-    return ComposeUIViewController { App(repository = repository, ai = ai) }
+    return ComposeUIViewController { App(accounts = accounts, ai = ai, deviceStore = store) }
 }

@@ -11,11 +11,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.Policy
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -49,14 +51,15 @@ import com.fithall.app.platform.todayKey
  * special-category data under GDPR, so processing it needs explicit, separate agreement.
  */
 @Composable
-fun ConsentScreen(privacyPolicyUrl: String, onAccept: (crashReports: Boolean) -> Unit) {
+fun ConsentScreen(privacyPolicyUrl: String, termsUrl: String, onAccept: (crashReports: Boolean, analytics: Boolean) -> Unit) {
     var adult by rememberSaveable { mutableStateOf(false) }
     var agreed by rememberSaveable { mutableStateOf(false) }
     // Optional and unticked: consent has to be an active choice.
     var crashReports by rememberSaveable { mutableStateOf(false) }
+    var analytics by rememberSaveable { mutableStateOf(false) }
 
     Column(
-        Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(20.dp),
+        Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).widthIn(max = 640.dp).padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text("Your data and FitHall", style = MaterialTheme.typography.headlineMedium)
@@ -82,18 +85,24 @@ fun ConsentScreen(privacyPolicyUrl: String, onAccept: (crashReports: Boolean) ->
                 Point("Barcodes", "Barcodes you scan are looked up in Open Food Facts, a public food database. Only the barcode is sent.")
                 Point(
                     "Stored on your phone",
-                    "Everything you log stays on this device. You can export it or delete it at any time in Profile → Your data.",
+                    "Everything you log stays on this device, separately for each account. You can export it or delete it at any time in Profile → Your data.",
                 )
+                Point("Your account", "Your email and password are managed by Google Firebase Authentication. You can delete your account at any time in Profile → Account.")
                 Point("Not medical advice", "FitHall gives general fitness and nutrition guidance. It isn't a substitute for a doctor or dietitian.")
             }
         }
 
-        if (privacyPolicyUrl.isNotBlank()) {
-            val uriHandler = LocalUriHandler.current
-            TextButton(onClick = { uriHandler.openUri(privacyPolicyUrl) }) {
-                Icon(Icons.Filled.Policy, null)
-                Spacer(Modifier.width(8.dp))
-                Text("Read the full privacy policy")
+        val uriHandler = LocalUriHandler.current
+        Row {
+            if (privacyPolicyUrl.isNotBlank()) {
+                TextButton(onClick = { uriHandler.openUri(privacyPolicyUrl) }) {
+                    Icon(Icons.Filled.Policy, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Privacy policy")
+                }
+            }
+            if (termsUrl.isNotBlank()) {
+                TextButton(onClick = { uriHandler.openUri(termsUrl) }) { Text("Terms of use") }
             }
         }
 
@@ -109,7 +118,13 @@ fun ConsentScreen(privacyPolicyUrl: String, onAccept: (crashReports: Boolean) ->
                 "and an app installation ID, never your health data. You can change this in Profile.",
         )
 
-        Button(onClick = { onAccept(crashReports) }, enabled = adult && agreed, modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
+        ConsentCheckbox(
+            analytics, { analytics = it },
+            "Optional: share usage analytics (which features you use) to help improve FitHall. Never your " +
+                "health data, meals, name or email. You can change this in Profile.",
+        )
+
+        Button(onClick = { onAccept(crashReports, analytics) }, enabled = adult && agreed, modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
             Text("Continue")
         }
         Text(
@@ -138,7 +153,7 @@ private fun ConsentCheckbox(checked: Boolean, onChange: (Boolean) -> Unit, text:
 
 /** Profile → Your data: policy link, export (data portability) and delete (erasure / withdraw consent). */
 @Composable
-fun YourDataSection(privacyPolicyUrl: String, crashReportsOn: Boolean, viewModel: AppViewModel) {
+fun YourDataSection(privacyPolicyUrl: String, termsUrl: String, crashReportsOn: Boolean, analyticsOn: Boolean, viewModel: AppViewModel) {
     val exporter = rememberFileExporter()
     val uriHandler = LocalUriHandler.current
     var confirmDelete by remember { mutableStateOf(false) }
@@ -147,7 +162,7 @@ fun YourDataSection(privacyPolicyUrl: String, crashReportsOn: Boolean, viewModel
         HorizontalDivider(Modifier.padding(vertical = 8.dp))
         Text("Your data", style = MaterialTheme.typography.titleMedium)
         Text(
-            "Your logs are stored only on this phone. FitHall's server doesn't keep your data, so deleting it here removes it from FitHall completely.",
+            "Your logs are stored only on this phone. FitHall's server doesn't keep them, so deleting them here removes them from FitHall completely. Your account stays; delete it under Account.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -162,11 +177,29 @@ fun YourDataSection(privacyPolicyUrl: String, crashReportsOn: Boolean, viewModel
             }
             Switch(checked = crashReportsOn, onCheckedChange = viewModel::setCrashReports)
         }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Share usage analytics", style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    "Which features you use, so we can improve them. Never health data, meals, name or email.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Switch(checked = analyticsOn, onCheckedChange = viewModel::setAnalytics)
+        }
         if (privacyPolicyUrl.isNotBlank()) {
             OutlinedButton(onClick = { uriHandler.openUri(privacyPolicyUrl) }, modifier = Modifier.fillMaxWidth()) {
                 Icon(Icons.Filled.Policy, null)
                 Spacer(Modifier.width(8.dp))
                 Text("Privacy policy")
+            }
+        }
+        if (termsUrl.isNotBlank()) {
+            OutlinedButton(onClick = { uriHandler.openUri(termsUrl) }, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Filled.Gavel, null)
+                Spacer(Modifier.width(8.dp))
+                Text("Terms of use")
             }
         }
         if (exporter.isAvailable) {

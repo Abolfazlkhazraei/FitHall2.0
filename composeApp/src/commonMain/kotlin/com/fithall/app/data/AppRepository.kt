@@ -21,7 +21,7 @@ import kotlinx.serialization.json.Json
 interface KeyValueStore {
     fun get(key: String): String?
     fun put(key: String, value: String?)
-    /** Removes everything, including the device token used by BackendAiService. */
+    /** Removes everything in this store. */
     fun clear()
 }
 
@@ -41,12 +41,15 @@ data class PrivacyConsent(
     val acceptedAtMillis: Long,
     /** Optional and off unless the user ticks it: sends crash reports to Firebase Crashlytics. */
     val crashReports: Boolean = false,
+    /** Optional and off unless the user ticks it: sends usage events to Google Analytics for Firebase. */
+    val analytics: Boolean = false,
 )
 
 object PrivacyPolicy {
     /** Bump when the privacy policy or the data the app sends changes in a way users must re-accept. */
     // 2: optional crash reporting (Firebase Crashlytics) added.
-    const val VERSION = 2
+    // 3: accounts (Firebase Authentication), terms of use and optional usage analytics added.
+    const val VERSION = 3
 }
 
 /**
