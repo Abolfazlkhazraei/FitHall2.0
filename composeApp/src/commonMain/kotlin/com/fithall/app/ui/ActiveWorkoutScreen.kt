@@ -1,5 +1,6 @@
 package com.fithall.app.ui
 
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -71,7 +72,7 @@ fun ActiveWorkoutScreen(session: WorkoutLog, history: List<WorkoutLog>, units: U
     val totalSets = session.exercises.sumOf { it.sets.size }
     val doneSets = session.exercises.sumOf { ex -> ex.sets.count { it.completed } }
 
-    Column(Modifier.fillMaxSize().statusBarsPadding().imePadding()) {
+    Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding()) {
         // Header stays visible while scrolling through exercises.
         Column(Modifier.padding(start = 16.dp, end = 4.dp, top = 12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {

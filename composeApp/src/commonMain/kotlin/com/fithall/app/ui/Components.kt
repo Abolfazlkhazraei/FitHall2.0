@@ -4,7 +4,9 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,26 +37,36 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-
-/** FitHall's signature gradient: deep green to teal. White text on it is large and bold. */
-object Brand {
-    val gradient = Brush.linearGradient(listOf(Color(0xFF0B5A37), Color(0xFF16774A), Color(0xFF0E6E73)))
-    // Dark enough that white body text stays above 4.5:1 contrast.
-    val warmGradient = Brush.linearGradient(listOf(Color(0xFF8A3A10), Color(0xFFAD4C17)))
-    val onGradient = Color.White
-    val onGradientMuted = Color.White.copy(alpha = 0.82f)
-}
+import androidx.compose.ui.unit.em
 
 /**
- * The top of each tab: a gradient panel with rounded bottom corners, a title and subtitle, and
- * optional content (stats, rings) inside it. It draws behind the status bar.
+ * Backgrounds for full-screen and highlighted panels. Light text on them passes AA. The names are
+ * kept from the earlier gradient look; both are now flat, since the accents do the work.
+ */
+object Brand {
+    /** The app's ground, for full-screen pages such as sign-in. */
+    val gradient: Brush = SolidColor(Palette.ground)
+    /** A deep blue panel for coach suggestions such as the weekly check-in. */
+    val warmGradient: Brush = SolidColor(Palette.blueDeep)
+    val onGradient = Palette.text
+    val onGradientMuted = Palette.muted
+}
+
+/** Dark text on light accents (lime, blue), light text on dark ones. */
+fun contentOn(color: Color): Color = if (color.luminance() > 0.45f) Palette.onLime else Palette.text
+
+/**
+ * The top of each tab: a small uppercase subtitle over a big title, and optional content (stats,
+ * rings) in a raised card underneath. It pads itself below the status bar.
  */
 @Composable
 fun HeroHeader(
@@ -66,22 +78,38 @@ fun HeroHeader(
     Column(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp))
-            .background(Brand.gradient)
             .statusBarsPadding()
-            .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 24.dp),
+            .padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 4.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 subtitle?.let {
-                    Text(it, style = MaterialTheme.typography.labelLarge, color = Brand.onGradientMuted)
+                    Text(
+                        it.uppercase(),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = Brand.onGradientMuted,
+                        letterSpacing = 0.06.em,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
                 Text(title, style = MaterialTheme.typography.headlineMedium, color = Brand.onGradient)
             }
             trailing?.invoke()
         }
-        content?.invoke(this)
+        content?.let {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(MaterialTheme.shapes.extraLarge)
+                    .background(Palette.surface)
+                    .border(1.dp, Palette.line, MaterialTheme.shapes.extraLarge)
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                content = it,
+            )
+        }
     }
 }
 
@@ -120,7 +148,7 @@ fun ProgressRing(
 /** A small ring for one macro: grams eaten in the middle, label and target underneath. */
 @Composable
 fun MacroRing(label: String, eaten: Int, target: Int, color: Color, onGradient: Boolean = false) {
-    val track = if (onGradient) Color.White.copy(alpha = 0.22f) else color.copy(alpha = 0.16f)
+    val track = color.copy(alpha = 0.16f)
     val text = if (onGradient) Brand.onGradient else MaterialTheme.colorScheme.onSurface
     val muted = if (onGradient) Brand.onGradientMuted else MaterialTheme.colorScheme.onSurfaceVariant
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -161,7 +189,7 @@ fun ActionTile(
         onClick = onClick,
         enabled = enabled,
         shape = MaterialTheme.shapes.large,
-        color = accent.copy(alpha = if (enabled) 0.12f else 0.05f),
+        color = if (enabled) Palette.raised else Palette.surface,
         modifier = modifier,
     ) {
         Column(
@@ -173,7 +201,7 @@ fun ActionTile(
                 Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(if (enabled) accent else accent.copy(alpha = 0.4f)),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(icon, null, tint = Color.White, modifier = Modifier.size(24.dp))
+                Icon(icon, null, tint = contentOn(accent), modifier = Modifier.size(24.dp))
             }
             Text(
                 label,
@@ -218,9 +246,10 @@ fun ContentCard(
     Surface(
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
+        border = BorderStroke(1.dp, Palette.line),
         modifier = modifier.fillMaxWidth().then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp), content = content)
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp), content = content)
     }
 }
 

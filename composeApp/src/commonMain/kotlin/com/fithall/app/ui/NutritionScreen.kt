@@ -40,6 +40,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -78,7 +79,13 @@ import com.fithall.app.platform.rememberVoiceInput
 import org.jetbrains.compose.resources.decodeToImageBitmap
 
 @Composable
-fun NutritionScreen(state: AppState, viewModel: AppViewModel) {
+fun NutritionScreen(
+    state: AppState,
+    viewModel: AppViewModel,
+    /** A way of logging chosen elsewhere (the quick-add sheet), started once this screen is showing. */
+    request: MealInput? = null,
+    onRequestHandled: () -> Unit = {},
+) {
     val launcher = rememberMealPhotoLauncher { bytes -> viewModel.analyzeMeal(bytes) }
     var describing by rememberSaveable { mutableStateOf(false) }
     var description by rememberSaveable { mutableStateOf("") }
@@ -95,6 +102,17 @@ fun NutritionScreen(state: AppState, viewModel: AppViewModel) {
         onBarcode = viewModel::lookupBarcode,
         onError = { inputError = it },
     )
+
+    LaunchedEffect(request) {
+        when (request) {
+            MealInput.PHOTO -> launcher.takePhoto()
+            MealInput.GALLERY -> launcher.pickFromGallery()
+            MealInput.BARCODE -> barcodeScanner.scan()
+            MealInput.DESCRIBE -> describing = true
+            null -> return@LaunchedEffect
+        }
+        onRequestHandled()
+    }
 
     if (describing) {
         DescribeMealDialog(
@@ -141,7 +159,7 @@ fun NutritionScreen(state: AppState, viewModel: AppViewModel) {
     ) {
         item {
             HeroHeader(
-                title = state.profile?.name?.takeIf { it.isNotBlank() }?.let { "Hi, ${it.substringBefore(' ')}" } ?: "Today",
+                title = "Eat",
                 subtitle = longDate(state.today),
             ) {
                 CalorieSummary(eaten, targets)
@@ -151,10 +169,10 @@ fun NutritionScreen(state: AppState, viewModel: AppViewModel) {
         item {
             Padded {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    ActionTile(Icons.Filled.CameraAlt, "Snap", MacroColors.carbs, launcher::takePhoto, Modifier.weight(1f), launcher.canTakePhoto)
-                    ActionTile(Icons.Filled.PhotoLibrary, "Gallery", Color(0xFF0E7C86), launcher::pickFromGallery, Modifier.weight(1f), launcher.canPickFromGallery)
-                    ActionTile(Icons.Filled.Mic, "Say it", MacroColors.calories, { describing = true }, Modifier.weight(1f))
-                    ActionTile(Icons.Filled.QrCodeScanner, "Barcode", MacroColors.protein, barcodeScanner::scan, Modifier.weight(1f), barcodeScanner.isAvailable)
+                    ActionTile(Icons.Filled.CameraAlt, "Snap", Palette.lime, launcher::takePhoto, Modifier.weight(1f), launcher.canTakePhoto)
+                    ActionTile(Icons.Filled.PhotoLibrary, "Gallery", Palette.text, launcher::pickFromGallery, Modifier.weight(1f), launcher.canPickFromGallery)
+                    ActionTile(Icons.Filled.Mic, "Say it", Palette.blue, { describing = true }, Modifier.weight(1f))
+                    ActionTile(Icons.Filled.QrCodeScanner, "Barcode", Palette.text, barcodeScanner::scan, Modifier.weight(1f), barcodeScanner.isAvailable)
                 }
             }
         }
@@ -203,27 +221,27 @@ fun NutritionScreen(state: AppState, viewModel: AppViewModel) {
 private val weekdayNames = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 
 /** "2026-10-11" -> "Sunday, Oct 11". */
-private fun longDate(dayKey: String): String = runCatching {
+internal fun longDate(dayKey: String): String = runCatching {
     val date = kotlinx.datetime.LocalDate.parse(dayKey)
     "${weekdayNames[date.dayOfWeek.ordinal]}, ${shortDate(dayKey)}"
 }.getOrDefault(dayKey)
 
-/** Inside the hero header: a big calorie ring and three macro rings, in white on the gradient. */
+/** Inside the hero header: a big calorie ring and three macro rings. */
 @Composable
 private fun CalorieSummary(eaten: MacroTargets, targets: MacroTargets) {
     val left = targets.calories - eaten.calories
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         ProgressRing(
             progress = if (targets.calories == 0) 0f else eaten.calories.toFloat() / targets.calories,
-            size = 132.dp,
-            stroke = 12.dp,
-            color = if (left >= 0) Color.White else Color(0xFFFFC2A8),
-            trackColor = Color.White.copy(alpha = 0.22f),
+            size = 140.dp,
+            stroke = 14.dp,
+            color = if (left >= 0) Palette.lime else MacroColors.carbs,
+            trackColor = Palette.lime.copy(alpha = 0.14f),
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     "${kotlin.math.abs(left)}",
-                    style = MaterialTheme.typography.headlineMedium,
+                    style = MaterialTheme.typography.headlineLarge,
                     color = Brand.onGradient,
                     fontWeight = FontWeight.ExtraBold,
                 )
@@ -240,9 +258,9 @@ private fun CalorieSummary(eaten: MacroTargets, targets: MacroTargets) {
         }
     }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-        MacroRing("Protein", eaten.proteinG, targets.proteinG, Color(0xFF9DCBFF), onGradient = true)
-        MacroRing("Carbs", eaten.carbsG, targets.carbsG, Color(0xFFB7F1CF), onGradient = true)
-        MacroRing("Fat", eaten.fatG, targets.fatG, Color(0xFFFFDE85), onGradient = true)
+        MacroRing("Protein", eaten.proteinG, targets.proteinG, MacroColors.protein)
+        MacroRing("Carbs", eaten.carbsG, targets.carbsG, MacroColors.carbs)
+        MacroRing("Fat", eaten.fatG, targets.fatG, MacroColors.fat)
     }
 }
 

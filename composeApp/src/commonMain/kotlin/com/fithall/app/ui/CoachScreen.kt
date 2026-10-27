@@ -1,7 +1,8 @@
 package com.fithall.app.ui
 
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.background
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.draw.clip
 import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.material3.SuggestionChip
@@ -58,7 +59,7 @@ private val suggestions = listOf(
 )
 
 @Composable
-fun CoachScreen(state: AppState, viewModel: AppViewModel) {
+fun CoachScreen(state: AppState, viewModel: AppViewModel, onBack: () -> Unit = {}) {
     var input by rememberSaveable { mutableStateOf("") }
     val listState = rememberLazyListState()
     LaunchedEffect(state.chat.size, state.coachTyping) {
@@ -71,15 +72,18 @@ fun CoachScreen(state: AppState, viewModel: AppViewModel) {
         input = ""
     }
 
-    Column(Modifier.fillMaxSize().imePadding()) {
+    Column(Modifier.fillMaxSize().navigationBarsPadding().imePadding()) {
         HeroHeader(
-            title = "AI Coach",
-            subtitle = "Knows your profile, meals and plans",
+            title = "Coach",
+            subtitle = "Knows your meals and plans",
             trailing = {
                 if (state.chat.isNotEmpty()) {
                     IconButton(onClick = viewModel::clearChat) {
                         Icon(Icons.Filled.DeleteSweep, contentDescription = "Clear chat", tint = Brand.onGradient)
                     }
+                }
+                IconButton(onClick = onBack) {
+                    Icon(Icons.Filled.Close, contentDescription = "Back to Today", tint = Brand.onGradient)
                 }
             },
         )
@@ -142,14 +146,14 @@ fun CoachScreen(state: AppState, viewModel: AppViewModel) {
             val canSend = input.isNotBlank() && !state.coachTyping
             Box(
                 Modifier.size(52.dp).clip(CircleShape)
-                    .background(if (canSend) Brand.gradient else Brush.linearGradient(listOf(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.surfaceVariant)))
+                    .background(if (canSend) Palette.lime else MaterialTheme.colorScheme.surfaceVariant)
                     .clickable(enabled = canSend) { send(input) },
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     Icons.AutoMirrored.Filled.Send,
                     contentDescription = "Send",
-                    tint = if (canSend) Brand.onGradient else MaterialTheme.colorScheme.onSurfaceVariant,
+                    tint = if (canSend) Palette.onLime else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
@@ -165,8 +169,8 @@ private fun Bubble(message: ChatMessage) {
         verticalAlignment = Alignment.Bottom,
     ) {
         if (!mine) {
-            Box(Modifier.size(32.dp).clip(CircleShape).background(Brand.gradient), contentAlignment = Alignment.Center) {
-                Icon(Icons.Filled.AutoAwesome, null, tint = Brand.onGradient, modifier = Modifier.size(18.dp))
+            Box(Modifier.size(32.dp).clip(RoundedCornerShape(12.dp)).background(Palette.blue), contentAlignment = Alignment.Center) {
+                Icon(Icons.Filled.AutoAwesome, null, tint = Palette.onLime, modifier = Modifier.size(18.dp))
             }
             Spacer(Modifier.width(8.dp))
         }
@@ -174,12 +178,12 @@ private fun Bubble(message: ChatMessage) {
         Text(
             message.text,
             style = MaterialTheme.typography.bodyMedium,
-            color = if (mine) Brand.onGradient else MaterialTheme.colorScheme.onSurface,
+            color = if (mine) Palette.onLime else MaterialTheme.colorScheme.onSurface,
             modifier = Modifier
                 .widthIn(max = 290.dp)
                 .clip(shape)
                 .then(
-                    if (mine) Modifier.background(Brand.gradient)
+                    if (mine) Modifier.background(Palette.lime)
                     else Modifier.background(MaterialTheme.colorScheme.surfaceContainerHigh)
                 )
                 .padding(horizontal = 14.dp, vertical = 10.dp),

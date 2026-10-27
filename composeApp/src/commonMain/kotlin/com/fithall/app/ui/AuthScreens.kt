@@ -153,7 +153,7 @@ fun WelcomeScreen(onGetStarted: () -> Unit, onLogIn: () -> Unit) {
         Spacer(Modifier.height(24.dp))
         Button(
             onClick = { if (last) onGetStarted() else page++ },
-            colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color(0xFF0B5A37)),
+            colors = ButtonDefaults.buttonColors(containerColor = Palette.lime, contentColor = Palette.onLime),
             modifier = Modifier.fillMaxWidth().height(52.dp),
         ) {
             Text(if (last) "Create an account" else "Next", fontWeight = FontWeight.SemiBold)

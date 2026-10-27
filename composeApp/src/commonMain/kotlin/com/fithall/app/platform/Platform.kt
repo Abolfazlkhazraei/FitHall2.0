@@ -54,3 +54,7 @@ interface NotificationPermission {
 
 @Composable
 expect fun rememberNotificationPermission(): NotificationPermission
+
+/** Handles the system back gesture while [enabled]; a no-op where there isn't one. */
+@Composable
+expect fun SystemBackHandler(enabled: Boolean, onBack: () -> Unit)

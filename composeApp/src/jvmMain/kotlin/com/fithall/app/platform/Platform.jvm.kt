@@ -50,3 +50,6 @@ actual fun rememberNotificationPermission(): NotificationPermission = remember {
         override fun request(onResult: (Boolean) -> Unit) = onResult(false)
     }
 }
+
+@Composable
+actual fun SystemBackHandler(enabled: Boolean, onBack: () -> Unit) = Unit

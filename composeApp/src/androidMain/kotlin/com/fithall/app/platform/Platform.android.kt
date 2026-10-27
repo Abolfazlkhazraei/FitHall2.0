@@ -119,3 +119,7 @@ private fun loadScaledJpeg(context: Context, uri: Uri): ByteArray {
 }
 
 private const val MAX_EDGE = 1568
+
+@Composable
+actual fun SystemBackHandler(enabled: Boolean, onBack: () -> Unit) =
+    androidx.activity.compose.BackHandler(enabled, onBack)

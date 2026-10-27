@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.ui.draw.clip
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -58,11 +59,12 @@ fun CheckInSection(state: AppState, viewModel: AppViewModel) {
 @Composable
 private fun DueCard(onRun: () -> Unit) {
     Column(
-        Modifier.fillMaxWidth().clip(MaterialTheme.shapes.large).background(Brand.warmGradient).padding(18.dp),
+        Modifier.fillMaxWidth().clip(MaterialTheme.shapes.large).background(Brand.warmGradient)
+            .border(1.dp, Palette.blueLine, MaterialTheme.shapes.large).padding(18.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Filled.AutoAwesome, null, tint = Brand.onGradient)
+            Icon(Icons.Filled.AutoAwesome, null, tint = Palette.blue)
             Spacer(Modifier.width(8.dp))
             Text("Your weekly check-in is ready", style = MaterialTheme.typography.titleMedium, color = Brand.onGradient)
         }
@@ -74,7 +76,7 @@ private fun DueCard(onRun: () -> Unit) {
         )
         Button(
             onClick = onRun,
-            colors = ButtonDefaults.buttonColors(containerColor = androidx.compose.ui.graphics.Color.White, contentColor = androidx.compose.ui.graphics.Color(0xFF8A3A10)),
+            colors = ButtonDefaults.buttonColors(containerColor = Palette.blue, contentColor = Palette.onLime),
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text("Start check-in")

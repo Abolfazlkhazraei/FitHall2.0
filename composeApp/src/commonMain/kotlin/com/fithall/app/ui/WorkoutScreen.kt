@@ -154,11 +154,11 @@ fun Padded(content: @Composable () -> Unit) {
     Box(Modifier.padding(horizontal = 16.dp)) { content() }
 }
 
-/** A translucent white label for use inside a hero header. */
+/** A small label for use inside a hero header card. */
 @Composable
 fun HeaderChip(text: String) {
     Box(
-        Modifier.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.18f)).padding(horizontal = 12.dp, vertical = 6.dp),
+        Modifier.clip(RoundedCornerShape(50)).background(Palette.raised).padding(horizontal = 12.dp, vertical = 6.dp),
     ) {
         Text(text, style = MaterialTheme.typography.labelMedium, color = Brand.onGradient, fontWeight = FontWeight.SemiBold)
     }
@@ -170,10 +170,10 @@ private fun WorkoutDayCard(number: Int, day: WorkoutDay, initiallyExpanded: Bool
     ContentCard(Modifier.animateContentSize(), onClick = { expanded = !expanded }) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
-                Modifier.size(44.dp).clip(CircleShape).background(Brand.gradient),
+                Modifier.size(44.dp).clip(RoundedCornerShape(16.dp)).background(Palette.lime),
                 contentAlignment = Alignment.Center,
             ) {
-                Text("$number", style = MaterialTheme.typography.titleMedium, color = Brand.onGradient, fontWeight = FontWeight.Bold)
+                Text("$number", style = MaterialTheme.typography.titleMedium, color = Palette.onLime, fontWeight = FontWeight.Bold)
             }
             HSpace(12.dp)
             Column(Modifier.weight(1f)) {
