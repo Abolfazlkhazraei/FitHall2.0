@@ -164,8 +164,31 @@ class AccountsTest {
     @Test
     fun deletionFormAppearsWithAWebApiKey() = testApplication {
         application { fitHallModule(config.copy(firebaseWebApiKey = "web-key"), ai, users = verifier) }
-        val page = client.get(Api.DELETE_ACCOUNT_PAGE).bodyAsText()
-        assertTrue(page.contains("<form id=\"delete-form\" data-key=\"web-key\">"))
+        val response = client.get(Api.DELETE_ACCOUNT_PAGE)
+        val page = response.bodyAsText()
+        assertTrue(page.contains("data-key=\"web-key\" data-project=\"fithall-app\""))
+        assertTrue(page.contains("<form id=\"delete-form\">"))
+        // Google and Facebook accounts can delete here too; the policy allows only what Firebase's SDK needs.
+        assertTrue(page.contains("data-provider=\"google\"") && page.contains("data-provider=\"facebook\""))
+        val csp = response.headers["Content-Security-Policy"]!!
+        assertTrue(csp.contains("frame-src https://fithall-app.firebaseapp.com"))
+        assertTrue(csp.contains("script-src 'self' https://www.gstatic.com https://apis.google.com"))
+        // Other pages keep the strict policy.
+        assertTrue(!client.get(Api.PRIVACY_PAGE).headers["Content-Security-Policy"]!!.contains("gstatic"))
+    }
+
+    @Test
+    fun configValuesAreEscapedInThePage() {
+        val page = Pages("k\"><script>alert(1)</script>", "fithall-app").deleteAccount
+        assertTrue(page.contains("data-key=\"k&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;\""))
+        assertTrue(!page.contains("<script>alert(1)"))
+    }
+
+    @Test
+    fun aMalformedProjectIdNeverReachesThePage() {
+        val pages = Pages("web-key", "evil.com; script-src *")
+        assertTrue(!pages.deleteAccount.contains("data-provider"))
+        assertTrue(!pages.deleteAccountCsp.contains("evil"))
     }
 
     @Test

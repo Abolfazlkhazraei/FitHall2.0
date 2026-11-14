@@ -17,7 +17,10 @@ import org.commonmark.renderer.html.HtmlRenderer
  * it) and a friendly 404. The policy and terms are rendered from docs/ (copied into resources by
  * the build) so there's one source for each.
  */
-class Pages(firebaseWebApiKey: String?) {
+class Pages(firebaseWebApiKey: String?, firebaseProjectId: String? = null) {
+
+    // Only a well-formed id goes into the page and its security policy.
+    private val projectId = firebaseProjectId?.takeIf { PROJECT_ID.matches(it) }
 
     private val extensions = listOf(TablesExtension.create())
     private val parser = Parser.builder().extensions(extensions).build()
@@ -26,6 +29,17 @@ class Pages(firebaseWebApiKey: String?) {
     val privacy: String = markdownPage("FitHall Privacy Policy", "pages/privacy-policy.md")
     val terms: String = markdownPage("FitHall Terms of Use", "pages/terms.md")
     val deleteAccount: String = page("Delete your FitHall account", deleteAccountBody(firebaseWebApiKey))
+
+    /**
+     * Deleting a Google or Facebook account signs in with Firebase's web SDK in a popup, which
+     * needs its scripts, Google's API loader and an iframe on the project's auth domain.
+     */
+    val deleteAccountCsp: String = if (firebaseWebApiKey == null || projectId == null) PAGE_CSP else
+        "default-src 'none'; style-src 'unsafe-inline'; " +
+            "script-src 'self' https://www.gstatic.com https://apis.google.com; " +
+            "connect-src https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com; " +
+            "frame-src https://$projectId.firebaseapp.com; " +
+            "form-action 'none'; base-uri 'none'; frame-ancestors 'none'"
     val notFound: String = page(
         "Page not found",
         """
@@ -54,19 +68,30 @@ class Pages(firebaseWebApiKey: String?) {
     }
 
     private fun deleteAccountBody(apiKey: String?): String {
+        val social = if (projectId == null) "" else """
+            <p class="muted">Signed up with Google or Facebook? Confirm with the same account:</p>
+            <div class="row">
+              <button type="button" class="provider" data-provider="google">Delete with Google</button>
+              <button type="button" class="provider" data-provider="facebook">Delete with Facebook</button>
+            </div>
+            <p class="muted">Signed up with an email and password?</p>
+        """.trimIndent()
         val form = if (apiKey == null) {
             "<p>Web deletion isn't available right now. Please delete your account in the app, or contact us using the details in the <a href=\"${Api.PRIVACY_PAGE}\">privacy policy</a>.</p>"
         } else {
             """
             <h2>Delete it here</h2>
-            <form id="delete-form" data-key="${escape(apiKey)}">
-              <label>Email <input type="email" id="email" autocomplete="email" required maxlength="254"></label>
-              <label>Password <input type="password" id="password" autocomplete="current-password" required maxlength="128"></label>
-              <label class="check"><input type="checkbox" id="confirm" required> I understand this permanently deletes my account.</label>
-              <button type="submit" id="submit">Delete my account</button>
+            <div id="delete" class="card" data-key="${escape(apiKey)}" data-project="${projectId.orEmpty()}">
+              <label class="check"><input type="checkbox" id="confirm"> I understand this permanently deletes my account.</label>
+              $social
+              <form id="delete-form">
+                <label>Email <input type="email" id="email" autocomplete="email" required maxlength="254"></label>
+                <label>Password <input type="password" id="password" autocomplete="current-password" required maxlength="128"></label>
+                <button type="submit" id="submit">Delete my account</button>
+              </form>
               <p id="status" role="status" aria-live="polite"></p>
-            </form>
-            <script src="${Api.DELETE_ACCOUNT_PAGE}.js"></script>
+            </div>
+            <script type="module" src="${Api.DELETE_ACCOUNT_PAGE}.js"></script>
             """.trimIndent()
         }
         return """
@@ -77,8 +102,7 @@ class Pages(firebaseWebApiKey: String?) {
             server doesn't keep them, so there's nothing else of yours on our servers to delete.</p>
             <h2>In the app</h2>
             <p>Open FitHall, go to <strong>Profile → Account → Delete account</strong>. This deletes your account
-            and everything FitHall stored on that phone. If you signed up with Google or Facebook, use this option:
-            you'll confirm by signing in with Google or Facebook again.</p>
+            and everything FitHall stored on that phone.</p>
             $form
             <p class="muted">If you delete your account here, your logs stay on your phone until you uninstall FitHall
             or clear its data.</p>
@@ -86,12 +110,19 @@ class Pages(firebaseWebApiKey: String?) {
     }
 
     companion object {
-        /** Deletes the account straight from the browser through Firebase; nothing passes through our server. */
+        /**
+         * Deletes the account straight from the browser through Firebase; nothing passes through
+         * our server. Email accounts use the REST API; Google and Facebook accounts sign in again
+         * with Firebase's web SDK in a popup, kept in memory only, so nothing stays in the browser.
+         */
         val deleteAccountScript = """
+            const FIREBASE = 'https://www.gstatic.com/firebasejs/$FIREBASE_JS_VERSION/';
+            const root = document.getElementById('delete');
             const form = document.getElementById('delete-form');
             const status = document.getElementById('status');
-            const button = document.getElementById('submit');
-            const key = form.dataset.key;
+            const confirmBox = document.getElementById('confirm');
+            const key = root.dataset.key;
+            const projectId = root.dataset.project;
             const messages = {
               INVALID_LOGIN_CREDENTIALS: 'Email or password is incorrect.',
               INVALID_PASSWORD: 'Email or password is incorrect.',
@@ -99,6 +130,27 @@ class Pages(firebaseWebApiKey: String?) {
               USER_DISABLED: 'This account has been disabled.',
               TOO_MANY_ATTEMPTS_TRY_LATER: 'Too many attempts. Please wait a few minutes and try again.',
             };
+            const providerMessages = {
+              'auth/popup-closed-by-user': '',
+              'auth/cancelled-popup-request': '',
+              'auth/popup-blocked': 'Your browser blocked the sign-in window. Allow pop-ups for this page and try again.',
+              'auth/account-exists-with-different-credential': 'This email signs in to FitHall another way. Use the method you signed up with.',
+              'auth/unauthorized-domain': "Deleting with Google or Facebook isn't set up for this website yet. Please delete your account in the app.",
+              'auth/operation-not-allowed': "This sign-in method isn't turned on. Please delete your account in the app.",
+              'auth/user-disabled': 'This account has been disabled.',
+            };
+
+            function setBusy(busy, text) {
+              root.querySelectorAll('button').forEach((b) => { b.disabled = busy; });
+              if (text !== undefined) status.textContent = text;
+            }
+            function confirmed() {
+              if (confirmBox.checked) return true;
+              status.textContent = 'Tick the box above to confirm first.';
+              confirmBox.focus();
+              return false;
+            }
+
             async function call(method, body) {
               const response = await fetch('https://identitytoolkit.googleapis.com/v1/accounts:' + method + '?key=' + encodeURIComponent(key), {
                 method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
@@ -110,10 +162,11 @@ class Pages(firebaseWebApiKey: String?) {
               }
               return data;
             }
+
             form.addEventListener('submit', async (event) => {
               event.preventDefault();
-              button.disabled = true;
-              status.textContent = 'Deleting…';
+              if (!confirmed()) return;
+              setBusy(true, 'Deleting…');
               try {
                 const email = document.getElementById('email').value.trim();
                 const password = document.getElementById('password').value;
@@ -123,10 +176,64 @@ class Pages(firebaseWebApiKey: String?) {
                 status.textContent = 'Your account has been deleted.';
               } catch (e) {
                 status.textContent = e.message;
-                button.disabled = false;
+              } finally {
+                setBusy(false);
               }
             });
+
+            // The SDK loads once the user ticks the box, so the popup can open straight from the
+            // button press (browsers block popups opened after a long wait).
+            let firebase = null;
+            function loadFirebase() {
+              if (!firebase) {
+                firebase = Promise.all([import(FIREBASE + 'firebase-app.js'), import(FIREBASE + 'firebase-auth.js')])
+                  .then(([app, auth]) => {
+                    const instance = app.initializeApp({ apiKey: key, authDomain: projectId + '.firebaseapp.com', projectId });
+                    return {
+                      sdk: auth,
+                      auth: auth.initializeAuth(instance, {
+                        persistence: auth.inMemoryPersistence,
+                        popupRedirectResolver: auth.browserPopupRedirectResolver,
+                      }),
+                    };
+                  });
+                firebase.catch(() => { firebase = null; });
+              }
+              return firebase;
+            }
+            if (projectId) confirmBox.addEventListener('change', () => { if (confirmBox.checked) loadFirebase(); });
+
+            root.querySelectorAll('button.provider').forEach((button) => {
+              button.addEventListener('click', async () => {
+                if (!confirmed()) return;
+                const google = button.dataset.provider === 'google';
+                const label = google ? 'Google' : 'Facebook';
+                setBusy(true, 'Waiting for ' + label + '…');
+                try {
+                  const { sdk, auth } = await loadFirebase();
+                  const provider = google ? new sdk.GoogleAuthProvider() : new sdk.FacebookAuthProvider();
+                  if (google) provider.setCustomParameters({ prompt: 'select_account' });
+                  const result = await sdk.signInWithPopup(auth, provider);
+                  // Signing in with an account FitHall has never seen creates one; it's removed straight away.
+                  const isNew = (sdk.getAdditionalUserInfo(result) || {}).isNewUser;
+                  status.textContent = 'Deleting…';
+                  await sdk.deleteUser(result.user);
+                  status.textContent = isNew
+                    ? 'There was no FitHall account for that ' + label + ' account, so there was nothing to delete.'
+                    : 'Your account has been deleted.';
+                } catch (e) {
+                  const code = e && e.code;
+                  status.textContent = code in providerMessages ? providerMessages[code] : 'Something went wrong. Please try again.';
+                } finally {
+                  setBusy(false);
+                }
+              });
+            });
         """.trimIndent()
+
+        /** Pinned so the page never picks up an untested SDK. */
+        private const val FIREBASE_JS_VERSION = "12.19.0"
+        private val PROJECT_ID = Regex("^[a-z0-9][a-z0-9-]{4,28}[a-z0-9]$")
 
         private fun escape(text: String) = text
             .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
@@ -150,7 +257,10 @@ class Pages(firebaseWebApiKey: String?) {
               a { color: var(--accent); }
               table { border-collapse: collapse; width: 100%; display: block; overflow-x: auto; font-size: 14px; }
               th, td { border: 1px solid color-mix(in srgb, var(--fg) 20%, transparent); padding: 8px; text-align: left; vertical-align: top; }
-              form { background: var(--card); border-radius: 16px; padding: 16px; display: grid; gap: 12px; }
+              .card { background: var(--card); border-radius: 16px; padding: 16px; display: grid; gap: 12px; }
+              form { display: grid; gap: 12px; }
+              .row { display: flex; flex-wrap: wrap; gap: 8px; } .row button { flex: 1 1 200px; }
+              button.provider { background: transparent; color: inherit; border: 1px solid var(--muted); }
               label { display: grid; gap: 4px; font-weight: 600; } label.check { display: flex; gap: 8px; font-weight: 400; align-items: flex-start; }
               input[type=email], input[type=password] { font: inherit; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--muted); background: transparent; color: inherit; }
               button { font: inherit; font-weight: 600; padding: 12px; border: 0; border-radius: 999px; background: #b3261e; color: #fff; cursor: pointer; }
@@ -173,8 +283,8 @@ class Pages(firebaseWebApiKey: String?) {
 private const val PAGE_CSP = "default-src 'none'; style-src 'unsafe-inline'; script-src 'self'; " +
     "connect-src https://identitytoolkit.googleapis.com; form-action 'none'; base-uri 'none'; frame-ancestors 'none'"
 
-suspend fun ApplicationCall.respondPage(html: String, status: HttpStatusCode = HttpStatusCode.OK) {
-    response.header("Content-Security-Policy", PAGE_CSP)
+suspend fun ApplicationCall.respondPage(html: String, status: HttpStatusCode = HttpStatusCode.OK, csp: String = PAGE_CSP) {
+    response.header("Content-Security-Policy", csp)
     response.header("X-Content-Type-Options", "nosniff")
     response.header("Referrer-Policy", "no-referrer")
     respondText(html, ContentType.Text.Html.withParameter("charset", "utf-8"), status)
@@ -184,7 +294,7 @@ fun Route.pages(pages: Pages) {
     get("/") { call.respondPage(pages.home) }
     get(Api.PRIVACY_PAGE) { call.respondPage(pages.privacy) }
     get(Api.TERMS_PAGE) { call.respondPage(pages.terms) }
-    get(Api.DELETE_ACCOUNT_PAGE) { call.respondPage(pages.deleteAccount) }
+    get(Api.DELETE_ACCOUNT_PAGE) { call.respondPage(pages.deleteAccount, csp = pages.deleteAccountCsp) }
     get("${Api.DELETE_ACCOUNT_PAGE}.js") {
         call.response.header("X-Content-Type-Options", "nosniff")
         call.respondText(Pages.deleteAccountScript, ContentType.Application.JavaScript)

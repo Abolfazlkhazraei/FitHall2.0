@@ -37,13 +37,38 @@ import kotlinx.coroutines.CompletableDeferred
 actual fun rememberSocialSignIn(): SocialSignIn {
     val context = LocalContext.current
     val googleClientId = remember { googleWebClientId(context) }
-    val facebookReady = remember { startFacebook(context) }
+    val facebookLogin = rememberFacebookLogin()
+
+    return remember(googleClientId, facebookLogin) {
+        object : SocialSignIn {
+            override val available = buildList {
+                if (googleClientId != null) add(SocialProvider.GOOGLE)
+                if (facebookLogin != null) add(SocialProvider.FACEBOOK)
+            }
+
+            override suspend fun token(provider: SocialProvider): String = when (provider) {
+                SocialProvider.GOOGLE -> googleIdToken(context, googleClientId ?: throw notAvailable(provider))
+                SocialProvider.FACEBOOK -> (facebookLogin ?: throw notAvailable(provider)).invoke()
+            }
+        }
+    }
+}
+
+/**
+ * Facebook's login, or null when this build has no Facebook keys. It returns before touching the
+ * SDK in that case: LoginManager refuses to exist until the SDK is initialised, and crashes the app.
+ */
+@Composable
+private fun rememberFacebookLogin(): (suspend () -> String)? {
+    val context = LocalContext.current
+    val ready = remember { startFacebook(context) }
+    if (!ready) return null
+
     val callbackManager = remember { CallbackManager.Factory.create() }
-    // The Facebook login in flight, completed by the callback below.
+    // The login in flight, completed by the callback below.
     val pending = remember { arrayOfNulls<CompletableDeferred<String>>(1) }
 
-    DisposableEffect(facebookReady) {
-        if (!facebookReady) return@DisposableEffect onDispose { }
+    DisposableEffect(Unit) {
         val login = LoginManager.getInstance()
         login.registerCallback(callbackManager, object : FacebookCallback<LoginResult> {
             override fun onSuccess(result: LoginResult) {
@@ -60,27 +85,16 @@ actual fun rememberSocialSignIn(): SocialSignIn {
         })
         onDispose { login.unregisterCallback(callbackManager) }
     }
-    val facebookLauncher = rememberLauncherForActivityResult(
+    val launcher = rememberLauncherForActivityResult(
         LoginManager.getInstance().createLogInActivityResultContract(callbackManager, null),
     ) { /* Delivered to the callback registered above. */ }
 
-    return remember(googleClientId, facebookReady) {
-        object : SocialSignIn {
-            override val available = buildList {
-                if (googleClientId != null) add(SocialProvider.GOOGLE)
-                if (facebookReady) add(SocialProvider.FACEBOOK)
-            }
-
-            override suspend fun token(provider: SocialProvider): String = when (provider) {
-                SocialProvider.GOOGLE -> googleIdToken(context, googleClientId ?: throw notAvailable(provider))
-                SocialProvider.FACEBOOK -> {
-                    if (!facebookReady) throw notAvailable(provider)
-                    val result = CompletableDeferred<String>()
-                    pending[0] = result
-                    facebookLauncher.launch(listOf("email", "public_profile"))
-                    result.await()
-                }
-            }
+    return remember(launcher) {
+        {
+            val result = CompletableDeferred<String>()
+            pending[0] = result
+            launcher.launch(listOf("email", "public_profile"))
+            result.await()
         }
     }
 }

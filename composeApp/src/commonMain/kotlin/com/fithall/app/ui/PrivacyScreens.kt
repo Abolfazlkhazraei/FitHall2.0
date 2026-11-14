@@ -1,5 +1,20 @@
 package com.fithall.app.ui
 
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.draw.clip
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.PhoneAndroid
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.HealthAndSafety
+import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.border
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -57,97 +72,143 @@ fun ConsentScreen(privacyPolicyUrl: String, termsUrl: String, onAccept: (crashRe
     // Optional and unticked: consent has to be an active choice.
     var crashReports by rememberSaveable { mutableStateOf(false) }
     var analytics by rememberSaveable { mutableStateOf(false) }
+    val uriHandler = LocalUriHandler.current
 
-    Column(
-        Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).widthIn(max = 640.dp).padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Text("Your data and FitHall", style = MaterialTheme.typography.headlineMedium)
-        Text(
-            "FitHall uses AI to estimate your meals, build your plans and coach you. Here's what that means for your data.",
-            style = MaterialTheme.typography.bodyLarge,
-        )
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+        Column(
+            Modifier.widthIn(max = 640.dp).fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            IconBadge(Icons.Filled.Shield, Palette.lime, size = 52.dp)
+            Text("Your data and FitHall", style = MaterialTheme.typography.headlineMedium)
+            Text(
+                "FitHall uses AI to estimate your meals, build your plans and coach you. Here's what that means for your data.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = Palette.muted,
+            )
 
-        Card(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            ContentCard {
                 Point(
-                    "Sent to the AI",
+                    Icons.Filled.AutoAwesome, "Sent to the AI",
                     "When you use an AI feature, what it needs is sent over an encrypted connection to FitHall's " +
                         "server and processed by Anthropic's Claude AI: your age, sex, height, weight, goal, " +
                         "activity, injuries and diet notes; meal photos and descriptions; workouts, weigh-ins and " +
                         "coach messages. Your name is never sent.",
                 )
                 Point(
-                    "Not kept on our server",
+                    Icons.Filled.CloudOff, "Not kept on our server",
                     "FitHall's server uses your data only to answer the request and doesn't store it. " +
                         "Anthropic processes it under its commercial terms; see the privacy policy for details.",
                 )
-                Point("Barcodes", "Barcodes you scan are looked up in Open Food Facts, a public food database. Only the barcode is sent.")
+                Point(Icons.Filled.QrCodeScanner, "Barcodes", "Barcodes you scan are looked up in Open Food Facts, a public food database. Only the barcode is sent.")
                 Point(
-                    "Stored on your phone",
+                    Icons.Filled.PhoneAndroid, "Stored on your phone",
                     "Everything you log stays on this device, separately for each account. You can export it or delete it at any time in Profile → Your data.",
                 )
-                Point("Your account", "Your email and password are managed by Google Firebase Authentication. You can delete your account at any time in Profile → Account.")
-                Point("Not medical advice", "FitHall gives general fitness and nutrition guidance. It isn't a substitute for a doctor or dietitian.")
+                Point(
+                    Icons.Filled.Person, "Your account",
+                    "Your sign-in (email and password, or your Google or Facebook account) is managed by Google Firebase " +
+                        "Authentication. You can delete your account at any time in Profile → Account.",
+                )
+                Point(Icons.Filled.HealthAndSafety, "Not medical advice", "FitHall gives general fitness and nutrition guidance. It isn't a substitute for a doctor or dietitian.")
             }
-        }
 
-        val uriHandler = LocalUriHandler.current
-        Row {
-            if (privacyPolicyUrl.isNotBlank()) {
-                TextButton(onClick = { uriHandler.openUri(privacyPolicyUrl) }) {
-                    Icon(Icons.Filled.Policy, null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Privacy policy")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (privacyPolicyUrl.isNotBlank()) {
+                    TextButton(onClick = { uriHandler.openUri(privacyPolicyUrl) }) {
+                        Icon(Icons.Filled.Policy, null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Privacy policy")
+                    }
+                }
+                if (termsUrl.isNotBlank()) {
+                    TextButton(onClick = { uriHandler.openUri(termsUrl) }) {
+                        Icon(Icons.Filled.Gavel, null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Terms of use")
+                    }
                 }
             }
-            if (termsUrl.isNotBlank()) {
-                TextButton(onClick = { uriHandler.openUri(termsUrl) }) { Text("Terms of use") }
+
+            GroupLabel("Required")
+            ConsentOption(adult, { adult = it }, "I'm ${Safety.MIN_AGE} or older")
+            ConsentOption(
+                agreed, { agreed = it },
+                "I agree to FitHall processing my health and fitness data",
+                "As described above and in the privacy policy.",
+            )
+
+            GroupLabel("Optional · off unless you turn them on")
+            ConsentOption(
+                crashReports, { crashReports = it },
+                "Send crash reports",
+                "Helps fix bugs. Includes your phone model, Android version and an app installation ID, never your health data.",
+            )
+            ConsentOption(
+                analytics, { analytics = it },
+                "Share usage analytics",
+                "Which features you use, to help improve FitHall. Never your health data, meals, name or email.",
+            )
+
+            Button(
+                onClick = { onAccept(crashReports, analytics) },
+                enabled = adult && agreed,
+                modifier = Modifier.fillMaxWidth().padding(top = 6.dp).height(56.dp),
+            ) {
+                Text("Continue", style = MaterialTheme.typography.titleMedium)
             }
+            Text(
+                if (adult && agreed) "You can change the optional choices, or withdraw your consent by deleting your data, at any time in Profile."
+                else "Tick both required boxes to continue.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Palette.muted,
+            )
         }
-
-        ConsentCheckbox(adult, { adult = it }, "I'm ${Safety.MIN_AGE} or older.")
-        ConsentCheckbox(
-            agreed, { agreed = it },
-            "I agree to FitHall processing my health and fitness data as described above and in the privacy policy.",
-        )
-
-        ConsentCheckbox(
-            crashReports, { crashReports = it },
-            "Optional: send crash reports to help fix bugs. They include your phone model, Android version " +
-                "and an app installation ID, never your health data. You can change this in Profile.",
-        )
-
-        ConsentCheckbox(
-            analytics, { analytics = it },
-            "Optional: share usage analytics (which features you use) to help improve FitHall. Never your " +
-                "health data, meals, name or email. You can change this in Profile.",
-        )
-
-        Button(onClick = { onAccept(crashReports, analytics) }, enabled = adult && agreed, modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
-            Text("Continue")
-        }
-        Text(
-            "You can withdraw your consent at any time by deleting your data in Profile.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
     }
 }
 
 @Composable
-private fun Point(title: String, body: String) {
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(title, style = MaterialTheme.typography.titleSmall)
-        Text(body, style = MaterialTheme.typography.bodyMedium)
+private fun Point(icon: ImageVector, title: String, body: String) {
+    Row(Modifier.padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        IconBadge(icon, Palette.blue, size = 32.dp)
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(title, style = MaterialTheme.typography.titleSmall)
+            Text(body, style = MaterialTheme.typography.bodyMedium, color = Palette.muted)
+        }
     }
 }
 
 @Composable
-private fun ConsentCheckbox(checked: Boolean, onChange: (Boolean) -> Unit, text: String) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { onChange(!checked) }) {
-        Checkbox(checked = checked, onCheckedChange = onChange)
-        Text(text, style = MaterialTheme.typography.bodyMedium)
+private fun GroupLabel(text: String) {
+    Text(
+        text.uppercase(),
+        style = MaterialTheme.typography.labelMedium,
+        color = Palette.muted,
+        modifier = Modifier.padding(top = 6.dp, start = 4.dp),
+    )
+}
+
+/** A whole-row checkbox: lime outline once ticked, so the choices read at a glance. */
+@Composable
+private fun ConsentOption(checked: Boolean, onChange: (Boolean) -> Unit, title: String, detail: String? = null) {
+    val shape = MaterialTheme.shapes.medium
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(Palette.surface)
+            .border(1.dp, if (checked) Palette.lime else Palette.line, shape)
+            .toggleable(value = checked, role = Role.Checkbox, onValueChange = onChange)
+            .padding(start = 4.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // The row handles the tap; the box only shows the state.
+        Checkbox(checked = checked, onCheckedChange = null, modifier = Modifier.padding(12.dp))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(title, style = MaterialTheme.typography.titleSmall)
+            detail?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Palette.muted) }
+        }
     }
 }
 

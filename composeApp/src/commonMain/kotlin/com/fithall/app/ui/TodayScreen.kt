@@ -51,6 +51,8 @@ import androidx.compose.ui.unit.em
 import com.fithall.app.AppState
 import com.fithall.app.AppViewModel
 import com.fithall.app.domain.ProgressCalculator
+import com.fithall.app.model.WorkoutDay
+import com.fithall.app.model.WorkoutLog
 
 /**
  * The home screen: today's numbers at a glance, the next workout, the coach and today's meals,
@@ -252,28 +254,25 @@ private fun RingLegend(color: Color, label: String, value: String, of: String) {
 /** The lime card: resume the workout in progress, start the next plan day, or get a plan. */
 @Composable
 private fun UpNextCard(state: AppState, doneThisWeek: Int, viewModel: AppViewModel, navigate: (Destination) -> Unit) {
-    val plan = state.workoutPlan
-    val active = state.activeWorkout
-    val days = plan?.days.orEmpty()
-    val nextIndex = if (days.isEmpty()) 0 else doneThisWeek % days.size
-    val next = days.getOrNull(nextIndex)
-
-    val (label, title, detail, button) = when {
-        active != null -> listOf("In progress", active.title, "${active.exercises.size} exercises", "Resume workout")
-        next != null -> listOf(
-            "Up next · Day ${nextIndex + 1} of ${days.size}",
-            next.focus,
-            "${next.exercises.size} exercises · about ${next.durationMinutes} min",
+    val upNext = nextWorkout(state, doneThisWeek)
+    val (label, title, detail, button) = when (upNext) {
+        is NextWorkout.Resume -> listOf("In progress", upNext.session.title, "${upNext.session.exercises.size} exercises", "Resume workout")
+        is NextWorkout.PlanDay -> listOf(
+            "Up next · Day ${upNext.number} of ${upNext.of}",
+            upNext.day.focus,
+            "${upNext.day.exercises.size} exercises · about ${upNext.day.durationMinutes} min",
             "Start workout",
         )
-        state.generatingWorkout -> listOf("Training", "Building your plan…", "Your coach is designing it now", "Open Train")
-        else -> listOf("Training", "Get your plan", "Built around your level, equipment and goal", "Create my plan")
+        NextWorkout.Building -> listOf("Training", "Building your plan…", "Your coach is designing it now", "Open Train")
+        NextWorkout.NoPlan -> listOf("Training", "Get your plan", "Built around your level, equipment and goal", "Create my plan")
     }
+    val next = (upNext as? NextWorkout.PlanDay)?.day
+    val active = (upNext as? NextWorkout.Resume)?.session
     val onClick = {
-        when {
-            active != null -> Unit
-            next != null -> viewModel.startWorkout(next)
-            !state.generatingWorkout -> viewModel.generateWorkoutPlan()
+        when (upNext) {
+            is NextWorkout.PlanDay -> viewModel.startWorkout(upNext.day)
+            NextWorkout.NoPlan -> viewModel.generateWorkoutPlan()
+            is NextWorkout.Resume, NextWorkout.Building -> Unit
         }
         navigate(Destination.TRAIN)
     }
@@ -304,6 +303,29 @@ private fun UpNextCard(state: AppState, doneThisWeek: Int, viewModel: AppViewMod
             }
         }
     }
+}
+
+/** What the Today screen's training card offers. */
+internal sealed interface NextWorkout {
+    data class Resume(val session: WorkoutLog) : NextWorkout
+    /** Day [number] of [of] in the plan. */
+    data class PlanDay(val day: WorkoutDay, val number: Int, val of: Int) : NextWorkout
+    data object Building : NextWorkout
+    data object NoPlan : NextWorkout
+}
+
+/**
+ * A workout in progress comes first. Otherwise the plan's days are taken in order, moving on one
+ * day for each workout done in the last 7 days, and starting over after the last day.
+ */
+internal fun nextWorkout(state: AppState, doneThisWeek: Int): NextWorkout {
+    state.activeWorkout?.let { return NextWorkout.Resume(it) }
+    val days = state.workoutPlan?.days.orEmpty()
+    if (days.isNotEmpty()) {
+        val index = doneThisWeek.coerceAtLeast(0) % days.size
+        return NextWorkout.PlanDay(days[index], index + 1, days.size)
+    }
+    return if (state.generatingWorkout) NextWorkout.Building else NextWorkout.NoPlan
 }
 
 /** A tappable accent row: icon, title, one line of detail and a chevron. */

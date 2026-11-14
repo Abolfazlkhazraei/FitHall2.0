@@ -127,12 +127,16 @@ final attempt's tokens are counted.
    **Email enumeration protection** on. Under **Templates**, set the sender name and check the
    verification and password-reset emails.
    - **Google:** enable **Google**, then in Project settings → your Android app add the SHA-1
-     fingerprints of your debug and release keys (`./gradlew signingReport`), and download
-     `google-services.json` again. The new file contains the web client ID the
+     and SHA-256 fingerprints of your debug and release keys, and download
+     `google-services.json` again. `./gradlew :composeApp:signingReport` prints them (release
+     only once signing is set up in `local.properties`). With Play App Signing, Google re-signs
+     the app, so also add the fingerprints from Play Console → Test and release → App integrity →
+     App signing. The new file contains the web client ID the
      "Continue with Google" button needs; without it the button is hidden.
    - **Facebook:** create an app at https://developers.facebook.com (use case "Authenticate and
      request data from users with Facebook Login"), add the Android platform with package
-     `com.fithall.app`, class `com.fithall.app.MainActivity` and your key hashes. Enable
+     `com.fithall.app`, class `com.fithall.app.MainActivity` and your key hashes (each SHA-1 above,
+     as base64: `python -c "import base64;print(base64.b64encode(bytes.fromhex('<SHA1 without colons>')).decode())"`). Enable
      **Facebook** in Firebase with the app's App ID and App secret, and paste Firebase's OAuth
      redirect URI into Facebook Login → Settings. Then add `FACEBOOK_APP_ID` and
      `FACEBOOK_CLIENT_TOKEN` (App settings → Advanced) to `local.properties`. Without them the
@@ -140,6 +144,9 @@ final attempt's tokens are counted.
      before people outside your developer team can sign in.
    - Google and Facebook accounts don't go through email verification; the server accepts them
      as verified.
+   - So Google and Facebook users can also delete their account on the web page, add your
+     server's domain under **Authentication → Settings → Authorized domains** (localhost is
+     there already). The page signs them in with Firebase's web SDK in a popup.
 4. **Crashlytics** and **Analytics:** open both for the app. In Google Analytics, set data
    retention (Admin → Data collection → Data retention) and put it in the privacy policy.
 5. Start the server with `FIREBASE_PROJECT_ID` (and `FIREBASE_WEB_API_KEY` for the web deletion

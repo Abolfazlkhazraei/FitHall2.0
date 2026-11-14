@@ -98,9 +98,7 @@ fun ActiveWorkoutScreen(
     var finishing by remember { mutableStateOf(false) }
     var addingExercise by remember { mutableStateOf(false) }
     val exercises = session.exercises
-    var current by rememberSaveable {
-        mutableIntStateOf(exercises.indexOfFirst { ex -> ex.sets.any { !it.completed } }.coerceAtLeast(0))
-    }
+    var current by rememberSaveable { mutableIntStateOf(firstUnfinishedExercise(exercises)) }
     if (current > exercises.lastIndex) current = exercises.lastIndex.coerceAtLeast(0)
 
     Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding()) {
@@ -308,15 +306,11 @@ private fun ExerciseFocus(
     }
 
     if (active >= 0) {
+        val suggested = suggestedSet(exercise, active, lastTime)
         CurrentSetCard(
             setNumber = active + 1,
-            initialWeightKg = exercise.sets[active].weightKg
-                ?: exercise.sets.getOrNull(active - 1)?.weightKg
-                ?: lastTime?.getOrNull(active)?.weightKg,
-            initialReps = exercise.sets[active].reps.takeIf { it > 0 }
-                ?: exercise.sets.getOrNull(active - 1)?.reps?.takeIf { it > 0 }
-                ?: lastTime?.getOrNull(active)?.reps?.takeIf { it > 0 }
-                ?: targetReps(exercise.target),
+            initialWeightKg = suggested.weightKg,
+            initialReps = suggested.reps,
             units = units,
             onComplete = { weightKg, reps ->
                 onSetChange(active) { it.copy(weightKg = weightKg, reps = reps, completed = true) }
@@ -374,7 +368,7 @@ private fun SetRow(index: Int, set: SetLog, units: UnitSystem, onToggle: () -> U
 }
 
 /** "60 kg × 8", or "12 reps" for bodyweight. */
-private fun setLabel(set: SetLog, units: UnitSystem): String =
+internal fun setLabel(set: SetLog, units: UnitSystem): String =
     set.weightKg?.takeIf { it > 0 }
         ?.let { "${formatNumber(Units.kgToDisplay(it, units))} ${Units.weightUnit(units)} × ${set.reps}" }
         ?: "${set.reps} reps"
@@ -392,7 +386,7 @@ private fun CurrentSetCard(
     var weight by rememberSaveable(key) { mutableStateOf(initialWeightKg?.takeIf { it > 0 }?.let { Units.kgToDisplay(it, units) }) }
     var reps by rememberSaveable(key) { mutableIntStateOf(initialReps.coerceAtLeast(1)) }
     var editing by remember { mutableStateOf<String?>(null) }
-    val step = if (units == UnitSystem.METRIC) 2.5 else 5.0
+    val step = weightStep(units)
 
     Column(
         Modifier.fillMaxWidth().clip(MaterialTheme.shapes.extraLarge).background(Palette.surface)
@@ -617,6 +611,32 @@ private fun FinishDialog(doneSets: Int, onFinish: (String) -> Unit, onDiscard: (
         dismissButton = { TextButton(onClick = onDismiss) { Text("Keep going") } },
     )
 }
+
+/** Where a session opens: the first exercise with a set still to do, or the first one. */
+internal fun firstUnfinishedExercise(exercises: List<ExerciseLog>): Int =
+    exercises.indexOfFirst { ex -> ex.sets.any { !it.completed } }.coerceAtLeast(0)
+
+/** The weight (kg; null for bodyweight) and reps a set starts with. */
+internal data class SuggestedSet(val weightKg: Double?, val reps: Int)
+
+/**
+ * What's already typed for this set, else the previous set, else the same set last session,
+ * else the low end of the plan's target. Reps are always at least 1.
+ */
+internal fun suggestedSet(exercise: ExerciseLog, setIndex: Int, lastTime: List<SetLog>?): SuggestedSet {
+    val set = exercise.sets.getOrNull(setIndex)
+    val previous = exercise.sets.getOrNull(setIndex - 1)
+    val before = lastTime?.getOrNull(setIndex)
+    val weight = set?.weightKg ?: previous?.weightKg ?: before?.weightKg
+    val reps = set?.reps?.takeIf { it > 0 }
+        ?: previous?.reps?.takeIf { it > 0 }
+        ?: before?.reps?.takeIf { it > 0 }
+        ?: targetReps(exercise.target)
+    return SuggestedSet(weight?.takeIf { it > 0 }, reps.coerceAtLeast(1))
+}
+
+/** One tap of the weight stepper: 2.5 kg, or 5 lb. */
+internal fun weightStep(units: UnitSystem): Double = if (units == UnitSystem.METRIC) 2.5 else 5.0
 
 /** The lower bound of a target like "3 × 8-10" (8), or 10 when there isn't one. */
 internal fun targetReps(target: String): Int =

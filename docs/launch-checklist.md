@@ -22,5 +22,5 @@ code; 👤 = needs an action from you outside the code.
 | 15 | Error tracking | ✅ | Firebase Crashlytics (opt-in) with non-fatal reports for unexpected errors; server logs every unhandled error. |
 | 16 | Privacy policy page | ✅ 👤 | `docs/privacy-policy.md`, published by the server at `/privacy`, updated for accounts and analytics. 👤 Fill in the [BRACKETED] items and have it reviewed. |
 | 17 | Terms page | ✅ 👤 | `docs/terms.md`, published at `/terms`; accepted at sign-up. 👤 Fill in and have it reviewed. |
-| 18 | Delete account page | ✅ | In the app: Profile → Account → Delete account (password check, deletes the Firebase account and the phone's data). On the web: `/delete-account` (the URL Google Play asks for). |
+| 18 | Delete account page | ✅ | In the app: Profile → Account → Delete account (password check, deletes the Firebase account and the phone's data). On the web: `/delete-account` (the URL Google Play asks for), for email, Google and Facebook accounts; 👤 add your server's domain to Firebase's authorized domains. |
 | 19 | Onboarding flow | ✅ | Welcome pages → sign up → verify email → consent → profile questions → first plans generated. |

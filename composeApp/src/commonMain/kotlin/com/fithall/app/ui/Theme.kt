@@ -3,6 +3,7 @@ package com.fithall.app.ui
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
@@ -110,6 +111,9 @@ fun FitHallTheme(content: @Composable () -> Unit) {
         colorScheme = Colors,
         shapes = FitHallShapes,
         typography = FitHallTypography,
-        content = content,
-    )
+    ) {
+        // Sets the light text colour for every screen. Without it, screens drawn outside a
+        // Scaffold (consent, onboarding) get Compose's default black text on the dark ground.
+        Surface(color = Colors.background, contentColor = Colors.onBackground, content = content)
+    }
 }

@@ -78,7 +78,7 @@ fun Application.fitHallModule(
     costs: CostTracker = CostTracker(config.limits),
     /** Null when accounts are off; AI requests then need only a device token. */
     users: FirebaseTokenVerifier? = config.firebaseProjectId?.let { FirebaseTokenVerifier(it) },
-    pages: Pages = Pages(config.firebaseWebApiKey),
+    pages: Pages = Pages(config.firebaseWebApiKey, config.firebaseProjectId),
     // Created eagerly so a missing Google credential fails at startup, not on the first sign-up.
     integrity: IntegrityVerifier =
         if (config.integrity.mode == IntegrityMode.OFF) NoIntegrityVerifier else GooglePlayIntegrityVerifier(config.integrity),

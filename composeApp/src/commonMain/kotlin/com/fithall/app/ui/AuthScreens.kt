@@ -234,7 +234,7 @@ fun AuthScreen(
                     viewModel.signInWith(provider, social)
                 }
             }
-            LegalLine(termsUrl, privacyPolicyUrl)
+            LegalLine(social.available.joinToString(" or ") { it.label }, termsUrl, privacyPolicyUrl)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 HorizontalDivider(Modifier.weight(1f), color = Palette.line)
                 Text("or with email", style = MaterialTheme.typography.labelMedium, color = Brand.onGradientMuted, modifier = Modifier.padding(horizontal = 12.dp))
@@ -374,11 +374,11 @@ private val GoogleLogo: ImageVector by lazy {
 
 /** Signing up with Google or Facebook skips the terms checkbox, so the same consent is stated here. */
 @Composable
-private fun LegalLine(termsUrl: String, privacyUrl: String) {
+private fun LegalLine(providers: String, termsUrl: String, privacyUrl: String) {
     val uriHandler = LocalUriHandler.current
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
         Text(
-            "By continuing with Google or Facebook, you confirm you're 18 or older and agree to the Terms of Use and Privacy Policy.",
+            "By continuing with $providers, you confirm you're 18 or older and agree to the Terms of Use and Privacy Policy.",
             style = MaterialTheme.typography.bodySmall,
             color = Brand.onGradientMuted,
             textAlign = TextAlign.Center,

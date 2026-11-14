@@ -61,8 +61,16 @@ object Brand {
     val onGradientMuted = Palette.muted
 }
 
-/** Dark text on light accents (lime, blue), light text on dark ones. */
-fun contentOn(color: Color): Color = if (color.luminance() > 0.45f) Palette.onLime else Palette.text
+/** WCAG contrast ratio between two opaque colours, from 1 (none) to 21 (black on white). */
+fun contrastRatio(a: Color, b: Color): Float {
+    val la = a.luminance()
+    val lb = b.luminance()
+    return (maxOf(la, lb) + 0.05f) / (minOf(la, lb) + 0.05f)
+}
+
+/** Whichever of the dark and light text colours reads better on [color]. */
+fun contentOn(color: Color): Color =
+    if (contrastRatio(Palette.onLime, color) >= contrastRatio(Palette.text, color)) Palette.onLime else Palette.text
 
 /**
  * The top of each tab: a small uppercase subtitle over a big title, and optional content (stats,
