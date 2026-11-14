@@ -1,4 +1,4 @@
-"""Placeholder FitHall artwork: a white dumbbell on FitHall green.
+"""Placeholder FitHall artwork: a lime dumbbell on the app's near-black ground (see ui/Theme.kt).
 
 Generates, from one set of shapes:
   - the Android adaptive icon layers (vector drawables, 108x108 viewport)
@@ -9,8 +9,13 @@ Replace this with your real logo when you have one.
 """
 from pathlib import Path
 
-GREEN = "#1E8E5A"
-GREEN_DARK = "#15603D"
+# The app's palette (Palette in composeApp/.../ui/Theme.kt).
+GROUND = "#0A0B0D"
+SURFACE = "#141619"
+LIME = "#D4FF4F"
+TEXT = "#F4F5F2"
+MUTED = "#9BA1A8"
+# The themed-icon layer is a mask that Android tints, so its colour doesn't show.
 WHITE = "#FFFFFF"
 
 # Rounded rectangles in the 108x108 adaptive-icon viewport (x1, y1, x2, y2, radius). Everything
@@ -56,12 +61,12 @@ def dumbbell_paths(color):
 def write_android_icons():
     (RES / "drawable").mkdir(parents=True, exist_ok=True)
     (RES / "drawable/ic_launcher_foreground.xml").write_text(
-        vector(dumbbell_paths(WHITE), "Placeholder launcher icon: white dumbbell."), encoding="utf-8")
+        vector(dumbbell_paths(LIME), "Placeholder launcher icon: lime dumbbell. The splash screen draws it on the dark ground too."), encoding="utf-8")
     (RES / "drawable/ic_launcher_monochrome.xml").write_text(
         vector(dumbbell_paths(WHITE), "Single-colour layer for Android 13+ themed icons."), encoding="utf-8")
-    background = f'    <path\n        android:fillColor="{GREEN}"\n        android:pathData="M0,0h108v108h-108z" />'
+    background = f'    <path\n        android:fillColor="{GROUND}"\n        android:pathData="M0,0h108v108h-108z" />'
     (RES / "drawable/ic_launcher_background.xml").write_text(
-        vector(background, "Launcher icon background: FitHall green."), encoding="utf-8")
+        vector(background, "Launcher icon background: FitHall's near-black ground."), encoding="utf-8")
 
 
 def write_store_images():
@@ -71,21 +76,21 @@ def write_store_images():
         for x1, y1, x2, y2, r in SHAPES:
             draw.rounded_rectangle(
                 [ox + x1 * scale, oy + y1 * scale, ox + x2 * scale, oy + y2 * scale],
-                radius=r * scale, fill=WHITE,
+                radius=r * scale, fill=LIME,
             )
 
     out = ROOT / "docs/store"
     # Play Store icon: 512x512, full square (Play applies its own mask).
     size = 512
-    icon = Image.new("RGB", (size, size), GREEN)
+    icon = Image.new("RGB", (size, size), GROUND)
     draw_dumbbell(ImageDraw.Draw(icon), size / 108, 0, 0)
     icon.save(out / "play-icon-512.png")
 
     # Feature graphic: 1024x500, dumbbell and name.
     w, h = 1024, 500
-    feature = Image.new("RGB", (w, h), GREEN)
+    feature = Image.new("RGB", (w, h), GROUND)
     d = ImageDraw.Draw(feature)
-    d.rectangle([0, h - 90, w, h], fill=GREEN_DARK)
+    d.rectangle([0, h - 90, w, h], fill=SURFACE)
     draw_dumbbell(d, 4.2, 40, 250 - 54 * 4.2)
     font = None
     for name in ["segoeuib.ttf", "arialbd.ttf", "DejaVuSans-Bold.ttf"]:
@@ -100,8 +105,8 @@ def write_store_images():
             break
     if font is None:
         font = small = ImageFont.load_default()
-    d.text((500, 150), "FitHall", fill=WHITE, font=font)
-    d.text((40, h - 66), "Snap your meals. Train smarter. Weekly AI check-ins.", fill=WHITE, font=small)
+    d.text((500, 150), "FitHall", fill=TEXT, font=font)
+    d.text((40, h - 66), "Snap your meals. Train smarter. Weekly AI check-ins.", fill=MUTED, font=small)
     feature.save(out / "feature-graphic-1024x500.png")
 
 

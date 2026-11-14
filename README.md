@@ -218,9 +218,10 @@ upload. Shrinking can break code that relies on reflection, so test the release 
 ## Branding (placeholder)
 
 The launcher icon (an adaptive icon with a themed-icon layer), splash screen, colours and the Play
-Store artwork are placeholders: a white dumbbell on FitHall green (`#1E8E5A`). Colours live in
-`composeApp/.../ui/Theme.kt` (light and dark schemes, all text pairs WCAG AA) and
-`res/values*/colors.xml` for the window background.
+Store artwork are placeholders: a lime dumbbell (`#D4FF4F`) on the app's near-black ground
+(`#0A0B0D`). Colours live in `Palette` in `composeApp/.../ui/Theme.kt` (one dark scheme; the text
+pairs are checked for WCAG AA contrast in `RedesignTest`) and `res/values/colors.xml` for the
+window and splash background.
 
 `docs/store/make_icons.py` generates the icon vectors and `docs/store/play-icon-512.png` /
 `feature-graphic-1024x500.png` from one set of shapes. To rebrand, replace the shapes and colours
